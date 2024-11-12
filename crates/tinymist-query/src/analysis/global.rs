@@ -15,12 +15,12 @@ use tinymist_world::LspWorld;
 use tinymist_world::DETACHED_ENTRY;
 use typst::diag::{eco_format, At, FileError, FileResult, SourceResult, StrResult};
 use typst::engine::{Route, Sink, Traced};
-use typst::eval::Eval;
 use typst::foundations::{Bytes, Module, Styles};
 use typst::layout::Position;
 use typst::model::Document;
 use typst::syntax::package::PackageManifest;
 use typst::syntax::{package::PackageSpec, Span, VirtualPath};
+use typst_eval::Eval;
 
 use crate::analysis::prelude::*;
 use crate::analysis::{
@@ -313,7 +313,7 @@ impl LocalContext {
         self.shared_().preload_package(entry_point);
     }
 
-    pub(crate) fn with_vm<T>(&self, f: impl FnOnce(&mut typst::eval::Vm) -> T) -> T {
+    pub(crate) fn with_vm<T>(&self, f: impl FnOnce(&mut typst_eval::Vm) -> T) -> T {
         crate::upstream::with_vm((self.world() as &dyn World).track(), f)
     }
 
@@ -576,7 +576,8 @@ impl SharedContext {
         let traced = Traced::default();
         let mut sink = Sink::default();
 
-        typst::eval::eval(
+        typst_eval::eval(
+            &typst::ROUTINES,
             ((&self.world) as &dyn World).track(),
             traced.track(),
             sink.track_mut(),

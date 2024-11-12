@@ -11,8 +11,7 @@ mod prelude {
     pub use reflexo_vec2svg::{DefaultExportFeature, SvgTask, SvgText};
     pub use serde::{Deserialize, Serialize};
     pub use serde_json::Value as JsonValue;
-    pub use typst::foundations::{Scope, Value};
-    pub use typst::symbols::Symbol;
+    pub use typst::foundations::{Scope, Symbol, Value};
 
     pub use crate::LanguageState;
 
