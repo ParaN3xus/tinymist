@@ -138,6 +138,8 @@ impl RenderActor {
                 log::info!("RenderActor: document is not ready");
                 continue;
             };
+            let document = document.as_ref().clone();
+
             let data = if has_full_render {
                 if let Some(data) = self.renderer.pack_current() {
                     data
