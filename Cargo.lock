@@ -751,7 +751,8 @@ dependencies = [
  "insta",
  "tinymist-world",
  "typst",
- "typst-syntax",
+ "typst-eval",
+ "typst-syntax 0.13.0",
 ]
 
 [[package]]
@@ -4791,15 +4792,14 @@ dependencies = [
 
 [[package]]
 name = "typstyle-core"
-version = "0.12.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ab4ca4a1cc62f670b3cf96d37b1d5284ab9137418f476610847d79d5f3a7b8b"
+version = "0.12.14"
+source = "git+https://github.com/ParaN3xus/typstyle/?branch=nightly#6532a1f24fa29359de66c56906a5998bca7bdca0"
 dependencies = [
  "ecow",
  "itertools 0.13.0",
  "pretty",
  "rustc-hash 2.1.0",
- "typst-syntax 0.12.0",
+ "typst-syntax 0.13.0",
 ]
 
 [[package]]
@@ -5612,8 +5612,3 @@ checksum = "99a5bab8d7dedf81405c4bb1f2b83ea057643d9cb28778cea9eecddeedd2e028"
 dependencies = [
  "zune-core",
 ]
-
-[[patch.unused]]
-name = "typstyle-core"
-version = "0.12.14"
-source = "git+https://github.com/ParaN3xus/typstyle/?branch=nightly#6532a1f24fa29359de66c56906a5998bca7bdca0"

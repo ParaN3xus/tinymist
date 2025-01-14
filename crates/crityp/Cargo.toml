@@ -32,6 +32,7 @@ ecow.workspace = true
 tinymist-world.workspace = true
 typst.workspace = true
 typst-syntax.workspace = true
+typst-eval.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

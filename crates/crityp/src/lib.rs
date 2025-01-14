@@ -34,7 +34,8 @@ pub fn bench(c: &mut Criterion, world: &mut LspWorld) -> anyhow::Result<()> {
     let introspector = Introspector::default();
 
     // Evaluates the main source file.
-    let module = typst::eval::eval(
+    let module = typst_eval::eval(
+        &typst::ROUTINES,
         ((world) as &dyn World).track(),
         traced.track(),
         sink.track_mut(),
@@ -62,6 +63,7 @@ pub fn bench(c: &mut Criterion, world: &mut LspWorld) -> anyhow::Result<()> {
         let route = Route::default();
         let mut sink = Sink::default();
         let engine = &mut Engine {
+            routines: &typst::ROUTINES,
             world: ((world) as &dyn World).track(),
             introspector: introspector.track(),
             traced: traced.track(),
