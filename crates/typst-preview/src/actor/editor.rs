@@ -207,7 +207,7 @@ impl<T: EditorServer> EditorActor<T> {
                     match msg {
                         ControlPlaneMessage::ChangeCursorPosition(cursor_info) => {
                             debug!("EditorActor: received message from editor: {:?}", cursor_info);
-                            self.renderer_sender.send(RenderActorRequest::ChangeCursorPosition(cursor_info)).unwrap();
+                            self.renderer_sender.send(RenderActorRequest::ChangeCursorPosition(cursor_info)).unwrap_or_default();
                         }
                         ControlPlaneMessage::ResolveSourceLoc(jump_info) => {
                             debug!("EditorActor: received message from editor: {:?}", jump_info);
