@@ -4818,6 +4818,7 @@ dependencies = [
  "tempfile",
  "time",
  "typst 0.14.0",
+ "typst-html 0.14.0",
  "typst-shim",
  "wasm-bindgen",
  "web-time",
@@ -5273,7 +5274,7 @@ dependencies = [
 [[package]]
 name = "typst"
 version = "0.14.0"
-source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#b915e38efedfabd27558ad0af379d060077a012c"
+source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#6bc6cf6ec210c60c3e7ff25f84cf43aa1de0a277"
 dependencies = [
  "comemo",
  "ecow",
@@ -5291,7 +5292,7 @@ dependencies = [
 [[package]]
 name = "typst-ansi-hl"
 version = "0.4.0"
-source = "git+https://github.com/ParaN3xus/typst-ansi-hl.git?branch=nightly#d06fe4769f726b702853291d045de2970c3a140f"
+source = "git+https://github.com/ParaN3xus/typst-ansi-hl.git?branch=nightly#ce000b0e4ec0c95b1dd08a7f0d196b78bc5f3a01"
 dependencies = [
  "ansi_colours",
  "syntect",
@@ -5340,7 +5341,7 @@ dependencies = [
 [[package]]
 name = "typst-eval"
 version = "0.14.0"
-source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#b915e38efedfabd27558ad0af379d060077a012c"
+source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#6bc6cf6ec210c60c3e7ff25f84cf43aa1de0a277"
 dependencies = [
  "comemo",
  "ecow",
@@ -5374,7 +5375,7 @@ dependencies = [
 [[package]]
 name = "typst-html"
 version = "0.14.0"
-source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#b915e38efedfabd27558ad0af379d060077a012c"
+source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#6bc6cf6ec210c60c3e7ff25f84cf43aa1de0a277"
 dependencies = [
  "bumpalo",
  "comemo",
@@ -5425,7 +5426,7 @@ dependencies = [
 [[package]]
 name = "typst-layout"
 version = "0.14.0"
-source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#b915e38efedfabd27558ad0af379d060077a012c"
+source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#6bc6cf6ec210c60c3e7ff25f84cf43aa1de0a277"
 dependencies = [
  "az",
  "bumpalo",
@@ -5519,7 +5520,7 @@ dependencies = [
 [[package]]
 name = "typst-library"
 version = "0.14.0"
-source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#b915e38efedfabd27558ad0af379d060077a012c"
+source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#6bc6cf6ec210c60c3e7ff25f84cf43aa1de0a277"
 dependencies = [
  "az",
  "bitflags 2.9.1",
@@ -5595,7 +5596,7 @@ dependencies = [
 [[package]]
 name = "typst-macros"
 version = "0.14.0"
-source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#b915e38efedfabd27558ad0af379d060077a012c"
+source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#6bc6cf6ec210c60c3e7ff25f84cf43aa1de0a277"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -5606,7 +5607,7 @@ dependencies = [
 [[package]]
 name = "typst-pdf"
 version = "0.14.0"
-source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#b915e38efedfabd27558ad0af379d060077a012c"
+source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#6bc6cf6ec210c60c3e7ff25f84cf43aa1de0a277"
 dependencies = [
  "bytemuck",
  "comemo",
@@ -5645,7 +5646,7 @@ dependencies = [
 [[package]]
 name = "typst-realize"
 version = "0.14.0"
-source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#b915e38efedfabd27558ad0af379d060077a012c"
+source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#6bc6cf6ec210c60c3e7ff25f84cf43aa1de0a277"
 dependencies = [
  "arrayvec",
  "bumpalo",
@@ -5662,7 +5663,7 @@ dependencies = [
 [[package]]
 name = "typst-render"
 version = "0.14.0"
-source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#b915e38efedfabd27558ad0af379d060077a012c"
+source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#6bc6cf6ec210c60c3e7ff25f84cf43aa1de0a277"
 dependencies = [
  "bytemuck",
  "comemo",
@@ -5712,7 +5713,7 @@ dependencies = [
 [[package]]
 name = "typst-svg"
 version = "0.14.0"
-source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#b915e38efedfabd27558ad0af379d060077a012c"
+source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#6bc6cf6ec210c60c3e7ff25f84cf43aa1de0a277"
 dependencies = [
  "base64",
  "comemo",
@@ -5751,7 +5752,7 @@ dependencies = [
 [[package]]
 name = "typst-syntax"
 version = "0.14.0"
-source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#b915e38efedfabd27558ad0af379d060077a012c"
+source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#6bc6cf6ec210c60c3e7ff25f84cf43aa1de0a277"
 dependencies = [
  "ecow",
  "serde",
@@ -5779,7 +5780,7 @@ dependencies = [
 [[package]]
 name = "typst-timing"
 version = "0.14.0"
-source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#b915e38efedfabd27558ad0af379d060077a012c"
+source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#6bc6cf6ec210c60c3e7ff25f84cf43aa1de0a277"
 dependencies = [
  "parking_lot",
  "serde",
@@ -5803,7 +5804,7 @@ dependencies = [
 [[package]]
 name = "typst-utils"
 version = "0.14.0"
-source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#b915e38efedfabd27558ad0af379d060077a012c"
+source = "git+https://github.com/ParaN3xus/typst.git?branch=nightly-content-hint#6bc6cf6ec210c60c3e7ff25f84cf43aa1de0a277"
 dependencies = [
  "once_cell",
  "portable-atomic",
@@ -6888,21 +6889,6 @@ checksum = "2c9e525af0a6a658e031e95f14b7f889976b74a11ba0eca5a5fc9ac8a1c43a6a"
 dependencies = [
  "zune-core",
 ]
-
-[[patch.unused]]
-name = "reflexo"
-version = "0.6.1-rc1"
-source = "git+https://github.com/ParaN3xus/typst.ts/?branch=nightly#39ec7acaf715460a6e8a2d1f0e2337599cb1b339"
-
-[[patch.unused]]
-name = "reflexo-typst"
-version = "0.6.1-rc1"
-source = "git+https://github.com/ParaN3xus/typst.ts/?branch=nightly#39ec7acaf715460a6e8a2d1f0e2337599cb1b339"
-
-[[patch.unused]]
-name = "reflexo-vec2svg"
-version = "0.6.1-rc1"
-source = "git+https://github.com/ParaN3xus/typst.ts/?branch=nightly#39ec7acaf715460a6e8a2d1f0e2337599cb1b339"
 
 [[patch.unused]]
 name = "typstyle-core"
