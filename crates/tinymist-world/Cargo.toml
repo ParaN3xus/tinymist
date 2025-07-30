@@ -3,7 +3,6 @@ name = "tinymist-world"
 description = "Typst's World implementation for tinymist."
 categories = ["compilers"]
 keywords = ["language", "typst"]
-# group: world
 version = "0.13.16"
 authors.workspace = true
 license.workspace = true

@@ -1,7 +1,6 @@
 [package]
 name = "tinymist-vfs"
 description = "Vfs for tinymist."
-# group: world
 version = "0.13.16"
 authors.workspace = true
 license.workspace = true

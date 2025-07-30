@@ -142,7 +142,6 @@ reflexo = { version = "=0.6.1-rc2", default-features = false, features = [
 ] }
 reflexo-typst = { version = "=0.6.1-rc2", default-features = false }
 reflexo-vec2svg = { version = "=0.6.1-rc2" }
-
 typst = "0.14.0"
 typst-html = "0.14.0"
 typst-library = "0.14.0"
@@ -153,7 +152,7 @@ typst-render = "0.14.0"
 typst-pdf = "0.14.0"
 typst-syntax = "0.14.0"
 typst-eval = "0.14.0"
-typst-assets = { git = "https://github.com/typst/typst-assets", rev = "edf0d64" }
+typst-assets = { git = "https://github.com/typst/typst-assets", rev = "fbf00f9" }
 typstfmt = { version = "0", git = "https://github.com/Myriad-Dreamin/typstfmt", tag = "v0.13.1" }
 typst-ansi-hl = "0.4.0"
 typstyle-core = { version = "=0.13.16", default-features = false }
