@@ -8,11 +8,11 @@ The changelog lines unspecified with authors are all written by the @Myriad-Drea
 
 ## Unreleased
 
-## v0.13.17-rc1 - [2025-07-30]
+## v0.13.17-rc2 - [2025-07-30]
 
-Nightly Release at [build: bump world crates to 0.13.17-rc1](https://github.com/Myriad-Dreamin/tinymist/commit/641b28fc45d38844926c616a9632d0b1915771f1), using [ParaN3xus/typst rev 6bc6cf6](https://github.com/ParaN3xus/typst/commit/6bc6cf6ec210c60c3e7ff25f84cf43aa1de0a277), a.k.a. [typst/typst feat: make pdf_to_png public](https://github.com/typst/typst/commit/178c3beb4eeabe23bd91037268fb77f5dfdb31f3).
+Nightly Release at [build: bump world crates to 0.13.17-rc2](https://github.com/Myriad-Dreamin/tinymist/commit/641b28fc45d38844926c616a9632d0b1915771f1), using [ParaN3xus/typst rev 6bc6cf6](https://github.com/ParaN3xus/typst/commit/6bc6cf6ec210c60c3e7ff25f84cf43aa1de0a277), a.k.a. [typst/typst feat: make pdf_to_png public](https://github.com/typst/typst/commit/178c3beb4eeabe23bd91037268fb77f5dfdb31f3).
 
-**Full Changelog**: https://github.com/Myriad-Dreamin/tinymist/compare/v0.13.16...v0.13.17-rc1
+**Full Changelog**: https://github.com/Myriad-Dreamin/tinymist/compare/v0.13.16...v0.13.17-rc2
 
 ## v0.13.16 - [2025-07-29]
 
