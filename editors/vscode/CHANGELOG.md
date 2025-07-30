@@ -8,6 +8,12 @@ The changelog lines unspecified with authors are all written by the @Myriad-Drea
 
 ## Unreleased
 
+## v0.13.16 - [2025-07-30]
+
+Nightly Release at [commit 41acde3](https://github.com/Myriad-Dreamin/tinymist/commit/41acde371840e2fbaaa1111e04b76b9cec571ed9), using [ParaN3xus/typst rev 6bc6cf6](https://github.com/ParaN3xus/typst/commit/6bc6cf6ec210c60c3e7ff25f84cf43aa1de0a277), a.k.a. [typst/typst commit 178c3be](https://github.com/typst/typst/commit/178c3be).
+
+**Full Changelog**: https://github.com/Myriad-Dreamin/tinymist/compare/v0.13.14...v0.13.16
+
 ## v0.13.16 - [2025-07-29]
 
 * Bumped typstyle to v0.13.16 by @Enter-tainer in https://github.com/Myriad-Dreamin/tinymist/pull/1902 and https://github.com/Myriad-Dreamin/tinymist/pull/1915

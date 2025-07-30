@@ -3312,7 +3312,7 @@ dependencies = [
 [[package]]
 name = "reflexo"
 version = "0.6.1-rc2"
-source = "git+https://github.com/ParaN3xus/typst.ts/?branch=nightly#a7b62d3dfdf1dbd51201ddc288e5d1323db08e78"
+source = "git+https://github.com/ParaN3xus/typst.ts/?rev=ba50e8ef6e046078999df3264e9797da5decfe4c#ba50e8ef6e046078999df3264e9797da5decfe4c"
 dependencies = [
  "base64",
  "bitvec",
@@ -3338,7 +3338,7 @@ dependencies = [
 [[package]]
 name = "reflexo-typst"
 version = "0.6.1-rc2"
-source = "git+https://github.com/ParaN3xus/typst.ts/?branch=nightly#a7b62d3dfdf1dbd51201ddc288e5d1323db08e78"
+source = "git+https://github.com/ParaN3xus/typst.ts/?rev=ba50e8ef6e046078999df3264e9797da5decfe4c#ba50e8ef6e046078999df3264e9797da5decfe4c"
 dependencies = [
  "codespan-reporting",
  "comemo",
@@ -3370,7 +3370,7 @@ dependencies = [
 [[package]]
 name = "reflexo-typst2vec"
 version = "0.6.1-rc2"
-source = "git+https://github.com/ParaN3xus/typst.ts/?branch=nightly#a7b62d3dfdf1dbd51201ddc288e5d1323db08e78"
+source = "git+https://github.com/ParaN3xus/typst.ts/?rev=ba50e8ef6e046078999df3264e9797da5decfe4c#ba50e8ef6e046078999df3264e9797da5decfe4c"
 dependencies = [
  "bitvec",
  "comemo",
@@ -3398,7 +3398,7 @@ dependencies = [
 [[package]]
 name = "reflexo-vec2svg"
 version = "0.6.1-rc2"
-source = "git+https://github.com/ParaN3xus/typst.ts/?branch=nightly#a7b62d3dfdf1dbd51201ddc288e5d1323db08e78"
+source = "git+https://github.com/ParaN3xus/typst.ts/?rev=ba50e8ef6e046078999df3264e9797da5decfe4c#ba50e8ef6e046078999df3264e9797da5decfe4c"
 dependencies = [
  "base64",
  "comemo",
@@ -5265,7 +5265,7 @@ dependencies = [
 [[package]]
 name = "typst-ansi-hl"
 version = "0.4.0"
-source = "git+https://github.com/ParaN3xus/typst-ansi-hl.git?branch=nightly#ce000b0e4ec0c95b1dd08a7f0d196b78bc5f3a01"
+source = "git+https://github.com/ParaN3xus/typst-ansi-hl.git?rev=e88d66e27d3f95f55c64355f2199bc9beb5224df#e88d66e27d3f95f55c64355f2199bc9beb5224df"
 dependencies = [
  "ansi_colours",
  "syntect",
@@ -5615,7 +5615,7 @@ dependencies = [
 [[package]]
 name = "typstyle-core"
 version = "0.13.16"
-source = "git+https://github.com/ParaN3xus/typstyle/?branch=nightly#9f31c4ec7d90e68e956a3d8615e066eeb68473d4"
+source = "git+https://github.com/ParaN3xus/typstyle/?rev=7916c1b8f31a0f5d0cb2eb877309c467a0170751#7916c1b8f31a0f5d0cb2eb877309c467a0170751"
 dependencies = [
  "ecow",
  "itertools 0.14.0",

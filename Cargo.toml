@@ -284,27 +284,11 @@ typst-render = { git = "https://github.com/ParaN3xus/typst.git", branch = "night
 typst-pdf = { git = "https://github.com/ParaN3xus/typst.git", branch = "nightly-content-hint" }
 typst-syntax = { git = "https://github.com/ParaN3xus/typst.git", branch = "nightly-content-hint" }
 typst-eval = { git = "https://github.com/ParaN3xus/typst.git", branch = "nightly-content-hint" }
-
-typst-ansi-hl = { git = "https://github.com/ParaN3xus/typst-ansi-hl.git", branch = "nightly" }
-typstyle-core = { git = "https://github.com/ParaN3xus/typstyle/", branch = "nightly" }
-
-# These patches use local `typst` for development.
-# typst = { path = "../typst/crates/typst" }
-# typst-timing = { path = "../typst/crates/typst-timing" }
-# typst-svg = { path = "../typst/crates/typst-svg" }
-# typst-pdf = { path = "../typst/crates/typst-pdf" }
-# typst-render = { path = "../typst/crates/typst-render" }
-# typst-syntax = { path = "../typst/crates/typst-syntax" }
-
-# These patches use local `typstyle-core` for development.
-# typstyle-core = { path = "../typstyle/crates/typstyle-core" }
-
-# These patches use a different version of `reflexo`.
-#
-# A regular build MUST use `tag` or `rev` to specify the version of the patched crate to ensure stability.
-reflexo = { git = "https://github.com/ParaN3xus/typst.ts/", branch = "nightly" }
-reflexo-typst = { git = "https://github.com/ParaN3xus/typst.ts/", branch = "nightly" }
-reflexo-vec2svg = { git = "https://github.com/ParaN3xus/typst.ts/", branch = "nightly" }
+typst-ansi-hl = { git = "https://github.com/ParaN3xus/typst-ansi-hl.git", rev = "e88d66e27d3f95f55c64355f2199bc9beb5224df" }
+typstyle-core = { git = "https://github.com/ParaN3xus/typstyle/", rev = "7916c1b8f31a0f5d0cb2eb877309c467a0170751" }
+reflexo = { git = "https://github.com/ParaN3xus/typst.ts/", rev = "ba50e8ef6e046078999df3264e9797da5decfe4c" }
+reflexo-typst = { git = "https://github.com/ParaN3xus/typst.ts/", rev = "ba50e8ef6e046078999df3264e9797da5decfe4c" }
+reflexo-vec2svg = { git = "https://github.com/ParaN3xus/typst.ts/", rev = "ba50e8ef6e046078999df3264e9797da5decfe4c" }
 
 # These patches use local `reflexo` for development.
 # reflexo = { path = "../typst.ts/crates/reflexo/" }
