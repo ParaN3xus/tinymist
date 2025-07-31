@@ -186,6 +186,7 @@ impl ServerState {
         let cert_path = config.certification_path();
         let package = config.package_opts();
         let features = config.typst_features().unwrap_or_default();
+        let access_model = config.access_model(&client);
 
         log::info!("ServerState: creating ProjectState, entry: {entry:?}, inputs: {inputs:?}");
 
@@ -200,6 +201,7 @@ impl ServerState {
             packages,
             fonts,
             creation_timestamp,
+            access_model,
         );
 
         // todo: unify filesystem watcher
