@@ -1,0 +1,127 @@
+name: tinymist::auto_tag
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  auto-tag:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Get merged PR info
+      id: get-pr
+      run: |
+        COMMIT_SHA="${{ github.sha }}"
+        
+        PR_NUMBER=$(gh pr list --state merged --limit 50 --json number,mergeCommit \
+          --jq ".[] | select(.mergeCommit.oid == \"$COMMIT_SHA\") | .number")
+        
+        if [ -n "$PR_NUMBER" ]; then
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "Found merged PR: #$PR_NUMBER"
+        else
+          echo "pr_number=" >> $GITHUB_OUTPUT
+          echo "No merged PR found for this commit"
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Check for tag directive in merged PR
+      if: steps.get-pr.outputs.pr_number != ''
+      id: check-tag
+      run: |
+        PR_NUMBER="${{ steps.get-pr.outputs.pr_number }}"
+        
+        PR_BODY=$(gh pr view $PR_NUMBER --json body --jq '.body')
+        
+        if echo "$PR_BODY" | grep -E '\+Tags v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?'; then
+          TAG=$(echo "$PR_BODY" | grep -oE '\+Tags (v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?)' | sed 's/+Tags //')
+          echo "tag_found=true" >> $GITHUB_OUTPUT
+          echo "tag_version=$TAG" >> $GITHUB_OUTPUT
+          echo "Found tag directive: $TAG"
+        else
+          echo "tag_found=false" >> $GITHUB_OUTPUT
+          echo "No tag directive found in merged PR"
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Check if tag already exists
+      if: steps.check-tag.outputs.tag_found == 'true'
+      id: check-existing-tag
+      run: |
+        TAG="${{ steps.check-tag.outputs.tag_version }}"
+        
+        if git tag -l | grep -q "^$TAG$"; then
+          echo "tag_exists=true" >> $GITHUB_OUTPUT
+          echo "Tag $TAG already exists"
+        else
+          echo "tag_exists=false" >> $GITHUB_OUTPUT
+          echo "Tag $TAG does not exist, safe to create"
+        fi
+    
+    - name: Create tag
+      if: steps.check-tag.outputs.tag_found == 'true' && steps.check-existing-tag.outputs.tag_exists == 'false'
+      run: |
+        TAG="${{ steps.check-tag.outputs.tag_version }}"
+        PR_NUMBER="${{ steps.get-pr.outputs.pr_number }}"
+        
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        
+        git tag -a "$TAG" -m "Auto-created tag $TAG from PR #$PR_NUMBER"
+        git push origin "$TAG"
+        
+        echo "Created and pushed tag: $TAG"
+    
+    - name: Comment on merged PR
+      if: steps.check-tag.outputs.tag_found == 'true' && steps.check-existing-tag.outputs.tag_exists == 'false'
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const tagVersion = '${{ steps.check-tag.outputs.tag_version }}';
+          const prNumber = '${{ steps.get-pr.outputs.pr_number }}';
+          
+          const comment = `**Tag Created Successfully**
+          
+          Tag \`${tagVersion}\` has been automatically created and pushed to the repository following the merge of this PR.
+          
+          You can view the tag here: https://github.com/${{ github.repository }}/releases/tag/${tagVersion}`;
+          
+          github.rest.issues.createComment({
+            issue_number: parseInt(prNumber),
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+    
+    - name: Handle tag creation error
+      if: steps.check-tag.outputs.tag_found == 'true' && steps.check-existing-tag.outputs.tag_exists == 'true'
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const tagVersion = '${{ steps.check-tag.outputs.tag_version }}';
+          const prNumber = '${{ steps.get-pr.outputs.pr_number }}';
+          const actionUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+          
+          const comment = `**Tag Creation Failed**
+          
+          Could not create tag \`${tagVersion}\`.
+          
+          Please refer to [this action run](${actionUrl}) for more information.`;
+          
+          github.rest.issues.createComment({
+            issue_number: parseInt(prNumber),
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });

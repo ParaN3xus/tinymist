@@ -1,0 +1,55 @@
+name: tinymist::detect_pr_tag
+
+on:
+  pull_request:
+    types: [opened, edited]
+    branches: 
+      - main
+
+jobs:
+  detect-tag:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check PR description for tag
+      id: check-tag
+      run: |
+        PR_BODY="${{ github.event.pull_request.body }}"
+        
+        if echo "$PR_BODY" | grep -E '\+Tags v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?'; then
+          TAG=$(echo "$PR_BODY" | grep -oE '\+Tags (v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?)' | sed 's/+Tags //')
+          echo "tag_found=true" >> $GITHUB_OUTPUT
+          echo "tag_version=$TAG" >> $GITHUB_OUTPUT
+          echo "Found tag: $TAG"
+        else
+          echo "tag_found=false" >> $GITHUB_OUTPUT
+          echo "No tag found in PR description"
+        fi
+    
+    - name: Comment on PR
+      if: steps.check-tag.outputs.tag_found == 'true'
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const tagVersion = '${{ steps.check-tag.outputs.tag_version }}';
+          const comment = `**Tag Detection Notice**
+          
+          This PR contains a tag directive: \`+Tags ${tagVersion}\`
+          
+          If this PR is merged, it will automatically create tag \`${tagVersion}\` on the main branch.
+          
+          Please ensure before merging:
+          - [ ] **Cargo.toml & Cargo.lock**: No \`git\` dependencies with \`branch\`, use \`tag\` or \`rev\` dependencies instead
+          - [ ] **Publish tokens**: Both \`VSCODE_MARKETPLACE_TOKEN\` and \`OPENVSX_ACCESS_TOKEN\` are valid and not expired
+          - [ ] **Version updates**: All version numbers in \`Cargo.toml\`, \`package.json\` and other files have been updated consistently
+          - [ ] **Changelog**: \`editors/vscode/CHANGELOG.md\` has been updated with correct format
+          - [ ] **tinymist-assets**: If needed, the crate has been published and version updated in \`Cargo.toml\`
+          `
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
