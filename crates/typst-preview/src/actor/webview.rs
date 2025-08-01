@@ -163,6 +163,12 @@ impl<
                         if let Ok(path) = path {
                             self.render_sender.send(RenderActorRequest::WebviewResolveFrameLoc(path)).log_error("WebViewActor");
                         };
+                    } else if msg.starts_with("rescaled") {
+                        let scales = msg.split(' ').nth(1).unwrap();
+                        let scale_change = serde_json::from_str(scales);
+                        if let Ok(scales) = scale_change {
+                            self.render_sender.send(RenderActorRequest::WebviewRescaled(scales)).log_error("WebViewActor");
+                        };
                     } else {
                         let err = self.webview_websocket_conn.send(Message::Text(format!("error, received unknown message: {msg}"))).await;
                         log::info!("WebviewActor: received unknown message from websocket: {msg} {err:?}");

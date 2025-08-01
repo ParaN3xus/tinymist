@@ -64,6 +64,13 @@ export async function wsMain({ url, previewMode, isContentPreview }: WsArgs) {
       },
     });
 
+    svgDoc.setOnRescale((prevScale: number, currentScale: number): void => {
+      window.typstWebsocket.send(`rescaled ${JSON.stringify({
+        prev: prevScale,
+        cur: currentScale
+      })}`);
+    });
+
     // drag (panal resizing) -> rescaling
     // window.onresize = () => svgDoc.rescale();
     subsribes.push(fromEvent(window, "resize").subscribe(() => svgDoc.addViewportChange()));

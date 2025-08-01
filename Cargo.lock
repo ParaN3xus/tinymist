@@ -1007,7 +1007,7 @@ checksum = "e01a3366d27ee9890022452ee61b2b63a67e6f13f58900b651ff5665f0bb1fab"
 dependencies = [
  "libc",
  "option-ext",
- "redox_users 0.5.1",
+ "redox_users 0.5.2",
  "windows-sys 0.60.2",
 ]
 
@@ -3302,9 +3302,9 @@ dependencies = [
 
 [[package]]
 name = "redox_users"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78eaea1f52c56d57821be178b2d47e09ff26481a6042e8e042fcb0ced068b470"
+checksum = "a4e608c6638b9c18977b00b475ac1f28d14e84b27d8d42f70e0bf1e3dec127ac"
 dependencies = [
  "getrandom 0.2.16",
  "libredox",
@@ -3334,7 +3334,7 @@ dependencies = [
 [[package]]
 name = "reflexo"
 version = "0.6.1-rc2"
-source = "git+https://github.com/ParaN3xus/typst.ts/?branch=nightly#0b237e17f8c45d855f8562ddff95ba2d86bf53b1"
+source = "git+https://github.com/ParaN3xus/typst.ts/?branch=pdf-preview-rescale#66aa53e7e26b552449285fe3e99b51cf96e8a5cd"
 dependencies = [
  "base64",
  "bitvec",
@@ -3360,7 +3360,7 @@ dependencies = [
 [[package]]
 name = "reflexo-typst"
 version = "0.6.1-rc2"
-source = "git+https://github.com/ParaN3xus/typst.ts/?branch=nightly#0b237e17f8c45d855f8562ddff95ba2d86bf53b1"
+source = "git+https://github.com/ParaN3xus/typst.ts/?branch=pdf-preview-rescale#66aa53e7e26b552449285fe3e99b51cf96e8a5cd"
 dependencies = [
  "codespan-reporting",
  "comemo",
@@ -3392,7 +3392,7 @@ dependencies = [
 [[package]]
 name = "reflexo-typst2vec"
 version = "0.6.1-rc2"
-source = "git+https://github.com/ParaN3xus/typst.ts/?branch=nightly#0b237e17f8c45d855f8562ddff95ba2d86bf53b1"
+source = "git+https://github.com/ParaN3xus/typst.ts/?branch=pdf-preview-rescale#66aa53e7e26b552449285fe3e99b51cf96e8a5cd"
 dependencies = [
  "bitvec",
  "comemo",
@@ -3420,7 +3420,7 @@ dependencies = [
 [[package]]
 name = "reflexo-vec2svg"
 version = "0.6.1-rc2"
-source = "git+https://github.com/ParaN3xus/typst.ts/?branch=nightly#0b237e17f8c45d855f8562ddff95ba2d86bf53b1"
+source = "git+https://github.com/ParaN3xus/typst.ts/?branch=pdf-preview-rescale#66aa53e7e26b552449285fe3e99b51cf96e8a5cd"
 dependencies = [
  "base64",
  "comemo",
@@ -3866,9 +3866,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.141"
+version = "1.0.142"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30b9eff21ebe718216c6ec64e1d9ac57087aad11efc64e32002bce4a0d4c03d3"
+checksum = "030fedb782600dcbd6f02d479bf0d817ac3bb40d644745b769d6a96bc3afc5a7"
 dependencies = [
  "itoa",
  "memchr",
@@ -5645,7 +5645,7 @@ dependencies = [
 [[package]]
 name = "typstyle-core"
 version = "0.13.16"
-source = "git+https://github.com/ParaN3xus/typstyle/?branch=nightly#9f31c4ec7d90e68e956a3d8615e066eeb68473d4"
+source = "git+https://github.com/ParaN3xus/typstyle/?branch=nightly#fd3e87525d5591994b09a40c6b1246eb9cb67414"
 dependencies = [
  "ecow",
  "itertools 0.14.0",

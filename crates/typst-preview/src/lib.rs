@@ -330,6 +330,12 @@ pub struct ChangeCursorPositionRequest {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct ScaleChange {
+    pub prev: f32,
+    pub cur: f32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct ResolveSourceLocRequest {
     pub filepath: PathBuf,
     pub line: u32,

@@ -11,7 +11,10 @@ use tokio::sync::{broadcast, mpsc};
 use super::{editor::EditorActorRequest, webview::WebviewActorRequest};
 use crate::debug_loc::SpanInterner;
 use crate::outline::Outline;
-use crate::{ChangeCursorPositionRequest, CompileView, DocToSrcJumpInfo, ResolveSourceLocRequest};
+use crate::{
+    ChangeCursorPositionRequest, CompileView, DocToSrcJumpInfo, ResolveSourceLocRequest,
+    ScaleChange,
+};
 
 #[derive(Debug, Clone)]
 pub struct ResolveSpanRequest(pub Vec<ElementPoint>);
@@ -25,6 +28,7 @@ pub enum RenderActorRequest {
     WebviewResolveFrameLoc(DocumentPosition),
     ResolveSourceLoc(ResolveSourceLocRequest),
     ChangeCursorPosition(ChangeCursorPositionRequest),
+    WebviewRescaled(ScaleChange),
 }
 
 impl RenderActorRequest {
@@ -37,6 +41,7 @@ impl RenderActorRequest {
             Self::ResolveSourceLoc(_) => false,
             Self::WebviewResolveFrameLoc(_) => false,
             Self::ChangeCursorPosition(_) => false,
+            Self::WebviewRescaled(_) => false,
         }
     }
 }
@@ -115,6 +120,11 @@ impl RenderActor {
                 log::debug!("RenderActor: processing ChangeCursorPosition: {req:?}");
 
                 self.change_cursor_position(req);
+            }
+            RenderActorRequest::WebviewRescaled(scales) => {
+                log::debug!("RenderActor: processing WebviewRescaled: {scales:?}");
+
+                self.rescaled(scales);
             }
             RenderActorRequest::RenderFullLatest | RenderActorRequest::RenderIncremental => {}
         }
@@ -277,6 +287,14 @@ impl RenderActor {
         let _ = self
             .webview_sender
             .send(WebviewActorRequest::CursorPaths(paths));
+
+        Some(())
+    }
+
+    fn rescaled(&mut self, scales: ScaleChange) -> Option<()> {
+        log::info!("RenderActor: notified scale change: {scales:?}");
+
+        let _ = self.renderer.set_typst2vec_scale(scales.cur);
 
         Some(())
     }

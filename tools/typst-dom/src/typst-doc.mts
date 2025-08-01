@@ -38,6 +38,8 @@ interface TypstDocumentFacade {
   postRender(): void;
 }
 
+export type RescaleCallback = (prevScale: number, currentScale: number) => void;
+
 export class TypstDocumentContext<O = any> {
   public hookedElem: HTMLElement;
   public kModule: RenderSession;
@@ -110,6 +112,11 @@ export class TypstDocumentContext<O = any> {
       top: 0,
     },
   };
+
+  /// Event fields
+
+  /// on rescale  
+  onRescale?: RescaleCallback;
 
   constructor(opts: Options & O) {
     this.hookedElem = opts.hookedElem;
@@ -251,6 +258,11 @@ export class TypstDocumentContext<O = any> {
         window.scrollBy(scrollX, scrollY);
       }
       // toggle scale change event
+
+      if (this.onRescale) {
+        this.onRescale(prevScaleRatio, this.currentScaleRatio);
+      }
+
       this.addViewportChange();
     };
 
@@ -491,6 +503,7 @@ export interface TypstDocument<T> {
   setPartialPageNumber(page: number): boolean;
   getPartialPageNumber(): number;
   setOutineData(outline: any): void;
+  setOnRescale(callback: RescaleCallback): void;
 }
 
 export function provideDoc<T extends TypstDocumentContext>(
@@ -559,6 +572,10 @@ export function provideDoc<T extends TypstDocumentContext>(
     setOutineData(outline: any) {
       this.impl.outline = outline;
       this.addViewportChange();
+    }
+
+    setOnRescale(callback: RescaleCallback): void {
+      this.impl.onRescale = callback;
     }
   };
 }
