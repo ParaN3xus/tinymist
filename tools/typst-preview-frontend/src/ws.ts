@@ -33,7 +33,7 @@ export async function wsMain({ url, previewMode, isContentPreview }: WsArgs) {
     if (hookedElem) {
       hookedElem.innerHTML = "";
     }
-    return () => {};
+    return () => { };
   }
 
   let disposed = false;
@@ -233,6 +233,30 @@ export async function wsMain({ url, previewMode, isContentPreview }: WsArgs) {
           window.typstWebsocket = sock as any;
           svgDoc.reset();
           window.typstWebsocket.send("current");
+
+          window.typstWebsocket.send(`dpr ${window.devicePixelRatio}`);
+          // listen dpr change for PDF rendering
+          const dprQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+          dprQuery.addEventListener('change', () => {
+            window.typstWebsocket.send(`dpr ${window.devicePixelRatio}`);
+          });
+
+
+          function sendWindowWidth() {
+            window.typstWebsocket.send(`width ${window.innerWidth}`);
+          }
+
+          sendWindowWidth();
+
+          let resizeTimer: number | null = null;
+          window.addEventListener('resize', () => {
+            if (resizeTimer) return;
+            resizeTimer = setTimeout(() => {
+              resizeTimer = null;
+              sendWindowWidth();
+            }, 200); // 200ms
+          });
+
         },
       },
       closeObserver: {

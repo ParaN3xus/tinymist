@@ -159,6 +159,18 @@ where
                         if let Ok(path) = path {
                             self.render_sender.send(RenderActorRequest::WebviewResolveFrameLoc(path)).log_error("WebViewActor");
                         };
+                    } else if msg.starts_with("dpr") {
+                        let dpr = msg.split(' ').nth(1).unwrap();
+                        let dpr = dpr.parse::<f32>();
+                        if let Ok(dpr) = dpr {
+                            self.render_sender.send(RenderActorRequest::WebviewDprChanged(dpr)).log_error("WebViewActor");
+                        };
+                    } else if msg.starts_with("width") {
+                        let width = msg.split(' ').nth(1).unwrap();
+                        let width = width.parse::<i32>();
+                        if let Ok(width) = width {
+                            self.render_sender.send(RenderActorRequest::WebviewWidthChanged(width)).log_error("WebViewActor");
+                        };
                     } else {
                         let err = self.webview_websocket_conn.send(WsMessage::Text(format!("error, received unknown message: {msg}"))).await;
                         log::info!("WebviewActor: received unknown message from websocket: {msg} {err:?}");

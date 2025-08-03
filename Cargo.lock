@@ -3335,7 +3335,6 @@ dependencies = [
 [[package]]
 name = "reflexo"
 version = "0.6.1-rc2"
-source = "git+https://github.com/ParaN3xus/typst.ts/?branch=nightly#62c42fe7fdbf817d366dfaa9933784f0332a4f67"
 dependencies = [
  "base64",
  "bitvec",
@@ -3361,7 +3360,6 @@ dependencies = [
 [[package]]
 name = "reflexo-typst"
 version = "0.6.1-rc2"
-source = "git+https://github.com/ParaN3xus/typst.ts/?branch=nightly#62c42fe7fdbf817d366dfaa9933784f0332a4f67"
 dependencies = [
  "codespan-reporting",
  "comemo",
@@ -3393,7 +3391,6 @@ dependencies = [
 [[package]]
 name = "reflexo-typst2vec"
 version = "0.6.1-rc2"
-source = "git+https://github.com/ParaN3xus/typst.ts/?branch=nightly#62c42fe7fdbf817d366dfaa9933784f0332a4f67"
 dependencies = [
  "bitvec",
  "comemo",
@@ -3421,7 +3418,6 @@ dependencies = [
 [[package]]
 name = "reflexo-vec2svg"
 version = "0.6.1-rc2"
-source = "git+https://github.com/ParaN3xus/typst.ts/?branch=nightly#62c42fe7fdbf817d366dfaa9933784f0332a4f67"
 dependencies = [
  "base64",
  "comemo",
@@ -4491,7 +4487,7 @@ dependencies = [
  "strum",
  "sync-ls",
  "temp-env",
- "tinymist-assets 0.13.16",
+ "tinymist-assets",
  "tinymist-core",
  "tinymist-debug",
  "tinymist-l10n",
@@ -4553,12 +4549,6 @@ dependencies = [
  "typst-timing 0.14.0",
  "unscanny",
 ]
-
-[[package]]
-name = "tinymist-assets"
-version = "0.13.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0580b86ae28902482e7e43cf56d90f0390c2a0443305bbad13ef0c2c1b9a5da9"
 
 [[package]]
 name = "tinymist-assets"
@@ -4701,7 +4691,7 @@ dependencies = [
  "reflexo-vec2svg",
  "serde",
  "serde_json",
- "tinymist-assets 0.13.16",
+ "tinymist-assets",
  "tinymist-std",
  "tokio",
  "typst",

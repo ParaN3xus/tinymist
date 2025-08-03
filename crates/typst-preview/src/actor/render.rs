@@ -25,6 +25,8 @@ pub enum RenderActorRequest {
     WebviewResolveFrameLoc(DocumentPosition),
     ResolveSourceLoc(ResolveSourceLocRequest),
     ChangeCursorPosition(ChangeCursorPositionRequest),
+    WebviewDprChanged(f32),
+    WebviewWidthChanged(i32),
 }
 
 impl RenderActorRequest {
@@ -37,6 +39,8 @@ impl RenderActorRequest {
             Self::ResolveSourceLoc(_) => false,
             Self::WebviewResolveFrameLoc(_) => false,
             Self::ChangeCursorPosition(_) => false,
+            Self::WebviewDprChanged(_) => false,
+            Self::WebviewWidthChanged(_) => false,
         }
     }
 }
@@ -48,6 +52,8 @@ pub struct RenderActor {
     editor_conn_sender: mpsc::UnboundedSender<EditorActorRequest>,
     svg_sender: mpsc::UnboundedSender<Vec<u8>>,
     webview_sender: broadcast::Sender<WebviewActorRequest>,
+    webview_dpr: f32,
+    webview_width: i32,
 }
 
 impl RenderActor {
@@ -65,6 +71,8 @@ impl RenderActor {
             editor_conn_sender,
             svg_sender,
             webview_sender,
+            webview_dpr: 1.0,
+            webview_width: 595, // A4
         };
         res.renderer.set_should_attach_debug_info(true);
         res
@@ -116,6 +124,16 @@ impl RenderActor {
 
                 self.change_cursor_position(req);
             }
+            RenderActorRequest::WebviewDprChanged(dpr) => {
+                log::debug!("RenderActor: processing WebviewDprChanged: {dpr:?}");
+
+                self.webview_dpr = dpr;
+            }
+            RenderActorRequest::WebviewWidthChanged(width) => {
+                log::debug!("RenderActor: processing WebviewWidthChanged: {width:?}");
+
+                self.webview_width = width;
+            }
             RenderActorRequest::RenderFullLatest | RenderActorRequest::RenderIncremental => {}
         }
 
@@ -161,6 +179,20 @@ impl RenderActor {
     }
 
     fn render(&mut self, has_full_render: bool, document: &TypstDocument) -> Vec<u8> {
+        let max_page_width = match document {
+            TypstDocument::Paged(paged_document) => paged_document
+                .pages
+                .iter()
+                .map(|p| p.frame.size().x.to_pt())
+                .max_by(|a, b| a.partial_cmp(b).unwrap()),
+            TypstDocument::Html(_) => None,
+        }
+        .unwrap() as f32;
+
+        self.renderer.set_typst2vec_scale(
+            10.0 * (self.webview_width as f32) * self.webview_dpr / max_page_width,
+        );
+
         if has_full_render {
             if let Some(data) = self.render_full() {
                 data
