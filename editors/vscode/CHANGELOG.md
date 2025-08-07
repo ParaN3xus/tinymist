@@ -9,6 +9,12 @@ The changelog lines unspecified with authors are all written by the @Myriad-Drea
 - [CHANGELOG-2025.md](https://github.com/Myriad-Dreamin/tinymist/blob/main/editors/vscode/CHANGELOG.md)
 - [CHANGELOG-2024.md](https://github.com/Myriad-Dreamin/tinymist/blob/main/CHANGELOG/CHANGELOG-2024.md)
 
+## v0.13.23-rc1 - [2025-08-07]
+
+Nightly Release at [fix: update VerbatimNode attribute to inline (#1926)](https://github.com/Myriad-Dreamin/tinymist/commit/641b28fc45d38844926c616a9632d0b1915771f1), using [ParaN3xus/typst rev 6a81e78](https://github.com/ParaN3xus/typst/commit/6a81e781b9e19fcec4a02a1d18d68d7dd1474444), a.k.a. [typst/typst Allow custom element names in HTML tag syntax  (#6676)](https://github.com/typst/typst/commit/b825df6bbc81856b979848361c4f11ce5ed61810).
+
+**Full Changelog**: https://github.com/Myriad-Dreamin/tinymist/compare/v0.13.22...v0.13.23-rc1
+
 ## v0.13.22 - [2025-08-06]
 
 * Bumped MSRV to 1.88 in https://github.com/Myriad-Dreamin/tinymist/pull/1993
