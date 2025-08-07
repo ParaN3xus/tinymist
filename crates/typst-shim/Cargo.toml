@@ -2,8 +2,9 @@
 name = "typst-shim"
 description = "A compatibility layer for Typst release and mainline versions."
 authors = ["The Typst Project Developers"]
-version = "0.13.17"
-edition.workspace = true
+# group: world
+version = "0.13.16"
+edition = "2024"
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true

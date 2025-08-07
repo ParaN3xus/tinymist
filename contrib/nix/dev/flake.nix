@@ -7,7 +7,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     rust-manifest = {
-      url = "https://static.rust-lang.org/dist/channel-rust-1.85.1.toml";
+      url = "https://static.rust-lang.org/dist/channel-rust-1.88.0.toml";
       flake = false;
     };
   };
@@ -19,16 +19,19 @@
       perSystem = {config, lib, pkgs, system, ...}: 
       let
         rust-toolchain = (fenix.packages.${system}.fromManifestFile rust-manifest).defaultToolchain;
-        tinymist = pkgs.rustPlatform.buildRustPackage (finalAttrs: {
+        tinymist =  (pkgs.makeRustPlatform {
+            cargo = rust-toolchain;
+            rustc = rust-toolchain;
+          }).buildRustPackage (finalAttrs: {
           pname = "tinymist";
           # Please update the corresponding vscode extension when updating
           # this derivation.
-          version = "0.13.19";
+          version = "0.13.22";
 
           src = pkgs.lib.cleanSource ../../..;
 
           useFetchCargoVendor = true;
-          cargoHash = "sha256-2cC3yPcywpPzahA+da9ZDCDnpCP6X9WqqVRrfEvHLNA=";
+          cargoHash = "sha256-IyGYBbb8ilK+8fsFAm1N2A0Cw0qrbTqG20TgQs+1yaA=";
 
           nativeBuildInputs = [
             pkgs.installShellFiles

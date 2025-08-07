@@ -6,7 +6,79 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 The changelog lines unspecified with authors are all written by the @Myriad-Dreamin.
 
-## Unreleased
+- [CHANGELOG-2025.md](https://github.com/Myriad-Dreamin/tinymist/blob/main/editors/vscode/CHANGELOG.md)
+- [CHANGELOG-2024.md](https://github.com/Myriad-Dreamin/tinymist/blob/main/CHANGELOG/CHANGELOG-2024.md)
+
+## v0.13.22 - [2025-08-06]
+
+* Bumped MSRV to 1.88 in https://github.com/Myriad-Dreamin/tinymist/pull/1993
+
+### Server
+
+* (Fix) Always sending compiled interrupt to main thread in https://github.com/Myriad-Dreamin/tinymist/pull/2001
+    * If such interrupt is not sent, the main thread will be stalled forever.
+* (Fix) Preventing `pending_reasons` (compilation) from cleaning up ocassionally in https://github.com/Myriad-Dreamin/tinymist/pull/2005
+    * Some `onSaved` signals are lost when the `pending_reasons` is cleaned up, which causes the issue of not exporting PDF after saving.
+* (Fix) Utilizing lsp's `onSave` to cover issue of unhandled fs changes from notify actor in https://github.com/Myriad-Dreamin/tinymist/pull/2006
+    * This fixes the issue of not exporting PDF if somebody saves the document frequently in a short time.
+
+### Misc
+
+* small fix about translations by @sjfhsjfh in https://github.com/Myriad-Dreamin/tinymist/pull/1785
+* Made translation of pinning clearer by @rikhuijzer in https://github.com/Myriad-Dreamin/tinymist/pull/1997
+
+**Full Changelog**: https://github.com/Myriad-Dreamin/tinymist/compare/v0.13.20...v0.13.22
+
+
+## v0.13.20 - [2025-08-05]
+
+* Bumped typstyle to v0.13.17 by @Enter-tainer in https://github.com/Myriad-Dreamin/tinymist/pull/1979
+    * See full changelog at <https://typstyle-rs.github.io/typstyle/changelog.html#label-v0.13.17%20-%20[2025-08-03]>
+
+### Editor
+
+* (Fix) Setting VS Code default configuration for invertColors to "never" by @BlueQuantumx in https://github.com/Myriad-Dreamin/tinymist/pull/1987
+
+### Server
+
+"Server Features" Were named "Compiler Features"
+
+* (Fix) Made configuration items null-safe in https://github.com/Myriad-Dreamin/tinymist/pull/1988
+* (Fix) Corrected export signal handling in https://github.com/Myriad-Dreamin/tinymist/pull/1990 and https://github.com/Myriad-Dreamin/tinymist/pull/1991
+  * This fixes the issue of exporting PDF with outdated compilations or not exporting at all.
+
+### Misc
+
+* Maintained workflows for nightly releases by @ParaN3xus in https://github.com/Myriad-Dreamin/tinymist/pull/1986
+
+**Full Changelog**: https://github.com/Myriad-Dreamin/tinymist/compare/v0.13.18...v0.13.20
+
+## v0.13.18 - [2025-08-03]
+
+### Compiler
+
+* (Fix) Emitting `onSaved` signal to exporter when vfs is clean in https://github.com/Myriad-Dreamin/tinymist/pull/1939
+  * Previously, this broke PDF export when `exportPdf=onSave`.
+* (Fix) Correctly handled relative user-specified output paths in compile command by @moeleak and @Myriad-Dreamin in https://github.com/Myriad-Dreamin/tinymist/pull/1941 and https://github.com/Myriad-Dreamin/tinymist/pull/1942
+
+### Symbols
+
+* (Fix) Made symbol queries infallible in https://github.com/Myriad-Dreamin/tinymist/pull/1964
+
+### Typlite
+
+* (Fix) Updated VerbatimNode attribute to inline by @hongjr03 in https://github.com/Myriad-Dreamin/tinymist/pull/1926
+
+### Preview
+
+* (Fix) Removed some compatiblility to preview configuration and fix `tinymist.preview.refresh` in https://github.com/Myriad-Dreamin/tinymist/pull/1807
+
+### Misc
+
+* Added Rust and Yarn to nix devShell in https://github.com/Myriad-Dreamin/tinymist/pull/1953
+* Automatically triggering [nightly releases](https://github.com/Myriad-Dreamin/tinymist?tab=readme-ov-file#versioning-and-release-cycle) by @ParaN3xus and @Myriad-Dreamin in https://github.com/Myriad-Dreamin/tinymist/pull/1951, https://github.com/Myriad-Dreamin/tinymist/pull/1955, https://github.com/Myriad-Dreamin/tinymist/pull/1959, https://github.com/Myriad-Dreamin/tinymist/pull/1961, https://github.com/Myriad-Dreamin/tinymist/pull/1962, and https://github.com/Myriad-Dreamin/tinymist/pull/1965
+
+**Full Changelog**: https://github.com/Myriad-Dreamin/tinymist/compare/v0.13.16...v0.13.18
 
 ## v0.13.19 - [2025-08-07]
 

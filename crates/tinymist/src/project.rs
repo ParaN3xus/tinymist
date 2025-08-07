@@ -23,6 +23,7 @@ use reflexo_typst::{diag::print_diagnostics, TypstDocument};
 use serde::{Deserialize, Serialize};
 pub use tinymist_project::*;
 
+use std::sync::atomic::AtomicUsize;
 use std::{num::NonZeroUsize, sync::Arc};
 
 use parking_lot::Mutex;
@@ -239,7 +240,7 @@ pub struct ProjectInsStateExt {
     pub notified_revision: usize,
     pub pending_reasons: CompileSignal,
     pub emitted_reasons: CompileSignal,
-    pub is_compiling: bool,
+    pub compiling_since: Option<tinymist_std::time::Time>,
     pub last_compilation: Option<LspCompiledArtifact>,
 }
 
@@ -252,13 +253,14 @@ impl ProjectInsStateExt {
         handler: &dyn CompileHandler<LspCompilerFeat, ProjectInsStateExt>,
         compilation: &LspCompiledArtifact,
     ) {
+        self.compiling_since = None;
+
         let rev = compilation.world().revision().get();
         if self.notified_revision >= rev {
             return;
         }
         self.notified_revision = rev;
 
-        self.is_compiling = false;
         self.last_compilation = Some(compilation.clone());
 
         self.emit_pending_reasons(revision, handler);
@@ -325,6 +327,11 @@ impl ProjectState {
             if let Some(proj) = proj {
                 proj.ext
                     .compiled(&proj.verse.revision, proj.handler.as_ref(), compiled);
+            } else {
+                log::info!(
+                    "Project({:?}): process compiled not found",
+                    compiled.snap.id
+                );
             }
         }
 
@@ -517,11 +524,35 @@ impl CompileHandler<LspCompilerFeat, ProjectInsStateExt> for CompileHandlerImpl 
     fn on_any_compile_reason(&self, c: &mut LspProjectCompiler) {
         let instances_mut = std::iter::once(&mut c.primary).chain(c.dedicates.iter_mut());
         for s in instances_mut {
-            if s.ext.is_compiling {
+            let reason = s.reason;
+            if !reason.any() {
                 continue;
             }
 
-            let reason = s.reason;
+            let id = &s.id;
+
+            if let Some(compiling_since) = &s.ext.compiling_since {
+                static CHECK_COMPILE_TIMEOUT: AtomicUsize = AtomicUsize::new(0);
+                let check_stalled = (CHECK_COMPILE_TIMEOUT
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                    & 0xFF)
+                    == 0;
+
+                if check_stalled {
+                    let since = (tinymist_std::time::Time::now().duration_since(*compiling_since))
+                        .unwrap_or_default();
+
+                    if since.as_secs() > 60 {
+                        log::warn!(
+                        "Project({id:?}): compiling for more than 60 seconds, since: {since:?}, \
+                     pending reasons: {:?}",
+                        s.ext.pending_reasons
+                    );
+                    }
+                }
+
+                continue;
+            }
 
             const VFS_SUB: CompileSignal = CompileSignal {
                 by_mem_events: true,
@@ -530,13 +561,19 @@ impl CompileHandler<LspCompilerFeat, ProjectInsStateExt> for CompileHandlerImpl 
             };
 
             let is_vfs_sub = reason.any() && !reason.exclude(VFS_SUB).any();
-            let id = &s.id;
 
             if is_vfs_sub
                 && 'vfs_is_clean: {
                     let Some(compilation) = &s.ext.last_compilation else {
                         break 'vfs_is_clean false;
                     };
+                    if compilation.world().entry_state() != s.verse.entry_state() {
+                        log::info!("Project: updated regardless of vfs for {id:?} due to entry state change, world: {:?} v.s. verse: {:?}",
+                            compilation.world().entry_state(),
+                            s.verse.entry_state(),
+                        );
+                        break 'vfs_is_clean false;
+                    }
 
                     let last_rev = compilation.world().vfs().revision();
                     let deps = compilation.depended_files().clone();
@@ -567,7 +604,7 @@ impl CompileHandler<LspCompilerFeat, ProjectInsStateExt> for CompileHandlerImpl 
             let Some(compile_fn) = s.may_compile(&c.handler) else {
                 continue;
             };
-            s.ext.is_compiling = true;
+            s.ext.compiling_since = Some(tinymist_std::time::Time::now());
             rayon::spawn(move || {
                 compile_fn();
             });
@@ -623,18 +660,38 @@ impl CompileHandler<LspCompilerFeat, ProjectInsStateExt> for CompileHandlerImpl 
     }
 
     fn notify_compile(&self, art: &LspCompiledArtifact) {
+        // NOTE: we have to inform the main thread about the compilation. If such
+        // interrupt is not sent, the main thread will be stalled forever.
+        self.client.interrupt(LspInterrupt::Compiled(art.clone()));
+
         {
             let mut n_revs = self.notified_revision.lock();
             let (n_rev, n_signal) = n_revs.entry(art.id().clone()).or_default();
-            if *n_rev >= art.world().revision().get() && !n_signal.exclude(art.snap.signal).any() {
+
+            let rev = art.world().revision().get();
+
+            // If the revision is outdated, update it and notify the client.
+            if *n_rev < rev {
+                *n_rev = rev;
+                // The signal must be reset to the current one.
+                *n_signal = art.snap.signal;
+
+                // Otherwise,
+                // 1. if the revision is not the same, ignores the signal.
+                // 2. if a fresh signal is found, merges and emits it.
+            } else if *n_rev == rev && n_signal.exclude(art.snap.signal).any() {
+                n_signal.merge(art.snap.signal);
+
+                // Otherwise we have already notified the client for this
+                // revision.
+            } else {
                 log::info!(
-                    "Project: already notified for revision {} <= {n_rev}",
+                    "Project: already notified for revision {} <= {n_rev}, signal: {n_signal:?} contains {:?}",
                     art.world().revision(),
+                    art.snap.signal
                 );
                 return;
             }
-            *n_rev = art.world().revision().get();
-            n_signal.merge(art.snap.signal);
         }
 
         // Prints the diagnostics when we are running the compilation in standalone
@@ -648,7 +705,6 @@ impl CompileHandler<LspCompilerFeat, ProjectInsStateExt> for CompileHandlerImpl 
             .log_error("failed to print diagnostics");
         }
 
-        self.client.interrupt(LspInterrupt::Compiled(art.clone()));
         self.export.signal(art, &self.client);
 
         #[cfg(feature = "preview")]
