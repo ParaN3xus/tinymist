@@ -207,6 +207,13 @@ impl ServerState {
         Ok(())
     }
 
+    pub(crate) fn handle_preview_notification(
+        &mut self,
+        params: PreviewNotificationParams,
+    ) -> LspResult<()> {
+        Ok(())
+    }
+
     fn workspace_configuration_callback(this: &mut ServerState, resp: sync_ls::lsp::Response) {
         if let Some(err) = resp.error {
             log::error!("failed to request configuration: {err:?}");

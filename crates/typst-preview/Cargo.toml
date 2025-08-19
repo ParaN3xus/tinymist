@@ -31,11 +31,17 @@ typst-macros.workspace = true
 typst-timing.workspace = true
 typst-assets.workspace = true
 
+wasmtimer = { version = "0.4.2", optional = true }
+
 clap = { workspace = true, optional = true }
+wasm-bindgen-futures.workspace = true
 
 [features]
 
-default = ["no-content-hint"]
+default = [ "no-content-hint", "web" ]
+
+web = [ "wasmtimer" ]
+system = []
 
 # Disable the default content hint.
 # This requires modifying typst.

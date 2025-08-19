@@ -3,11 +3,16 @@ use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use base64::engine::general_purpose;
+use base64::Engine;
 pub(crate) use futures::Future;
+use lsp_types::notification::Notification;
 use lsp_types::request::ShowMessageRequest;
 use lsp_types::*;
 use reflexo::debug_loc::LspPosition;
+use serde::{Deserialize, Serialize};
 use sync_ls::*;
+use tinymist_preview::WsMessage;
 use tinymist_query::{ServerInfoResponse, GLOBAL_STATS};
 use tinymist_std::error::prelude::*;
 use tinymist_std::ImmutPath;
@@ -102,6 +107,62 @@ pub struct ServerState {
     pub dep_tx: mpsc::UnboundedSender<NotifyMessage>,
     /// The dependency receiver to receive dependency changes from the project.
     pub dep_rx: Option<mpsc::UnboundedReceiver<NotifyMessage>>,
+
+    #[cfg(feature = "web")]
+    /// Channel to send messages from web client to preview server
+    pub(crate) preview_message_tx: Option<mpsc::UnboundedSender<WsMessage>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum PreviewNotificationParams {
+    /// WebSocket message from client to preview server
+    #[serde(rename = "websocket-message")]
+    WebSocketMessage {
+        /// The message content (text or binary data as base64)
+        content: PreviewMessageContent,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "format")]
+pub enum PreviewMessageContent {
+    /// Text message
+    #[serde(rename = "text")]
+    Text { data: String },
+    /// Binary message (encoded as base64)
+    #[serde(rename = "binary")]
+    Binary { data: String },
+}
+
+impl PreviewMessageContent {
+    /// Convert to WsMessage
+    pub fn to_ws_message(self) -> WsMessage {
+        match self {
+            PreviewMessageContent::Text { data } => WsMessage::Text(data),
+            PreviewMessageContent::Binary { data } => {
+                let bytes = general_purpose::STANDARD.decode(data).unwrap_or_default();
+                WsMessage::Binary(bytes)
+            }
+        }
+    }
+    /// Create from WsMessage
+    pub fn from_ws_message(msg: WsMessage) -> Self {
+        match msg {
+            WsMessage::Text(text) => PreviewMessageContent::Text { data: text },
+            WsMessage::Binary(bytes) => PreviewMessageContent::Binary {
+                data: general_purpose::STANDARD.encode(bytes),
+            },
+        }
+    }
+}
+
+/// Typst Preview Notification
+#[derive(Debug)]
+pub enum PreviewNotification {}
+impl Notification for PreviewNotification {
+    type Params = PreviewNotificationParams;
+    const METHOD: &'static str = "typst-preview";
 }
 
 /// Getters and the main loop.
@@ -181,6 +242,8 @@ impl ServerState {
             editor_actor: None,
             dep_tx,
             dep_rx,
+            #[cfg(all(feature = "web", feature = "preview"))]
+            preview_message_tx: None,
         }
     }
 
@@ -349,6 +412,10 @@ impl ServerState {
             .with_resource("/tutorial", State::resource_tutoral)
             .with_resource("/package/symbol", State::resource_package_symbols)
             .with_resource("/package/docs", State::resource_package_docs);
+
+        #[cfg(all(feature = "system", feature = "preview"))]
+        let mut provider =
+            provider.with_notification::<PreviewNotification>(State::handle_preview_notification);
 
         // todo: generalize me
         provider.args.add_commands(
