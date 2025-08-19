@@ -9,11 +9,14 @@ pub use crate::actor::editor::{
     CompileStatus, ControlPlaneMessage, ControlPlaneResponse, ControlPlaneRx, ControlPlaneTx,
     PanelScrollByPositionRequest,
 };
+#[cfg(feature = "web")]
+use crate::actor::render::RenderActor;
 pub use crate::outline::Outline;
 
 use std::sync::{Arc, OnceLock};
 use std::{collections::HashMap, future::Future, path::PathBuf, pin::Pin};
 
+use futures::StreamExt;
 use futures::sink::SinkExt;
 use reflexo_typst::Error;
 use reflexo_typst::args::TaskWhen;
@@ -81,7 +84,11 @@ pub struct Previewer {
     stop: Option<Box<dyn FnOnce() -> StopFuture + Send + Sync>>,
     data_plane_handle: Option<tokio::task::JoinHandle<()>>,
     data_plane_resources: Option<(DataPlane, Option<mpsc::Sender<()>>, mpsc::Receiver<()>)>,
-    control_plane_handle: tokio::task::JoinHandle<()>,
+    control_plane_handle: Option<tokio::task::JoinHandle<()>>,
+    #[cfg(feature = "web")]
+    editor_actor: Option<Box<dyn std::any::Any + Send>>,
+    #[cfg(feature = "web")]
+    render_actor: Option<RenderActor>,
 }
 
 impl Previewer {
@@ -95,7 +102,7 @@ impl Previewer {
     /// Join all the previewer actors. Note: send stop request first.
     pub async fn join(mut self) {
         let data_plane_handle = self.data_plane_handle.take().expect("must bind data plane");
-        let _ = tokio::join!(data_plane_handle, self.control_plane_handle);
+        let _ = tokio::join!(data_plane_handle, self.control_plane_handle.unwrap());
     }
 
     /// Listen streams that accepting data plane messages.
@@ -119,7 +126,7 @@ impl Previewer {
         let recv = move |conn| {
             let h = conn_handler.clone();
             let alive_tx = alive_tx.clone();
-            tokio::spawn(async move {
+            spawn_cpu(async move {
                 let conn: C = caster(conn.await).unwrap();
                 tokio::pin!(conn);
 
@@ -152,13 +159,18 @@ impl Previewer {
                     svg.0,
                     h.webview_tx,
                 );
+
+                // self.render_actor = Some(render_actor);
+                #[cfg(feature = "system")]
                 tokio::spawn(render_actor.run());
+
                 let outline_render_actor = actor::render::OutlineRenderActor::new(
                     h.renderer_tx.subscribe(),
                     h.doc_sender.clone(),
                     h.editor_tx.clone(),
                     h.span_interner,
                 );
+                #[cfg(feature = "system")]
                 tokio::spawn(outline_render_actor.run());
 
                 struct FinallySend(mpsc::UnboundedSender<()>);
@@ -169,13 +181,17 @@ impl Previewer {
                 }
 
                 let _send = FinallySend(alive_tx);
+                #[cfg(feature = "system")]
                 webview_actor.run().await;
             })
         };
 
-        let data_plane_handle = tokio::spawn(async move {
+        let data_plane_handle = spawn_cpu(async move {
             let mut alive_cnt = 0;
+            #[cfg(not(feature = "web"))]
             let mut shutdown_bell = tokio::time::interval(idle_timeout);
+            #[cfg(feature = "web")]
+            let mut shutdown_bell = wasmtimer::tokio::interval(idle_timeout);
             loop {
                 if shutdown_tx.is_some() {
                     shutdown_bell.reset();
@@ -187,7 +203,10 @@ impl Previewer {
                     }
                     Some(stream) = streams.recv() => {
                         alive_cnt += 1;
+                        #[cfg(not(feature = "web"))]
                         tokio::spawn(recv(stream));
+                        #[cfg(feature = "web")]
+                        recv(stream);
                     },
                     _ = alive_rx.recv() => {
                         alive_cnt -= 1;
@@ -205,7 +224,14 @@ impl Previewer {
             }
         });
 
-        self.data_plane_handle = Some(data_plane_handle);
+        #[cfg(feature = "web")]
+        {
+            self.data_plane_handle = None;
+        }
+        #[cfg(not(feature = "web"))]
+        {
+            self.data_plane_handle = Some(data_plane_handle);
+        }
     }
 }
 
@@ -277,8 +303,17 @@ impl PreviewBuilder {
             webview_tx.clone(),
             span_interner.clone(),
         );
-        let control_plane_handle = tokio::spawn(editor_actor.run());
-        log::info!("Previewer: editor actor spawned");
+
+        #[cfg(not(feature = "web"))]
+        let control_plane_handle = {
+            log::info!("Previewer: editor actor spawned");
+            Some(tokio::spawn(editor_actor.run()))
+        };
+        #[cfg(feature = "web")]
+        let control_plane_handle = {
+            log::info!("Previewer: editor actor created (web mode)");
+            None
+        };
 
         // Delayed data plane binding
         let data_plane = DataPlane {
@@ -301,6 +336,10 @@ impl PreviewBuilder {
                     let _ = editor_tx.send(EditorActorRequest::Shutdown);
                 })
             })),
+            #[cfg(feature = "web")]
+            editor_actor: Some(Box::new(editor_actor)),
+            #[cfg(feature = "web")]
+            render_actor: None,
         }
     }
 }
@@ -565,4 +604,26 @@ pub struct PreviewInvertColorObject {
     /// The invert color mode about rest elements.
     #[serde(default)]
     pub rest: PreviewInvertColor,
+}
+
+// todo: move me to tinymist-std
+#[cfg(not(target_arch = "wasm32"))]
+/// tokio::spawn wrapper
+pub fn spawn_cpu<F>(func: F) -> tokio::task::JoinHandle<<F as futures::Future>::Output>
+where
+    F: Future + Send + 'static,
+    <F as futures::Future>::Output: std::marker::Send,
+{
+    tokio::spawn(func)
+}
+
+#[cfg(target_arch = "wasm32")]
+/// tokio::spawn wrapper - runs on main thread blocking
+pub fn spawn_cpu<F>(func: F)
+where
+    F: Future + 'static,
+{
+    wasm_bindgen_futures::spawn_local(async move {
+        let _ = func.await;
+    });
 }

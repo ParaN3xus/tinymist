@@ -1,15 +1,24 @@
 //! Document preview tool for Typst
 
 pub use compile::{PreviewCompileView, ProjectPreviewHandler};
+use futures::future::MaybeDone;
+#[cfg(all(feature = "system", feature = "preview"))]
 pub use http::{make_http_server, HttpServer};
+use tokio::runtime::Handle;
 
 mod compile;
 mod http;
+
+#[cfg(feature = "web")]
+use std::pin::Pin;
+#[cfg(feature = "web")]
+use std::task::{Context, Poll};
 
 use std::{collections::HashMap, path::Path, sync::Arc};
 
 use clap::{Parser, ValueEnum};
 use futures::{SinkExt, TryStreamExt};
+#[cfg(all(feature = "system", feature = "preview"))]
 use hyper_tungstenite::{tungstenite::Message, HyperWebsocket, HyperWebsocketStream};
 use lsp_types::notification::Notification;
 use lsp_types::Url;
@@ -203,8 +212,11 @@ impl PreviewCliArgs {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StartPreviewResponse {
+    #[cfg(feature = "system")]
     static_server_port: Option<u16>,
+    #[cfg(feature = "system")]
     static_server_addr: Option<String>,
+    #[cfg(feature = "system")]
     data_plane_port: Option<u16>,
     is_primary: bool,
 }
@@ -264,7 +276,12 @@ impl ServerState {
         let entry = entry
             .map(|input| {
                 let input = Path::new(&input);
-                if !input.is_absolute() {
+                let is_absolute = if cfg!(target_arch = "wasm32") {
+                    input.has_root()
+                } else {
+                    input.is_absolute()
+                };
+                if !is_absolute {
                     // std::env::current_dir().unwrap().join(input)
                     return Err(invalid_params("entry file must be absolute path"));
                 };
@@ -301,7 +318,7 @@ impl ServerState {
             ));
         }
 
-        if registered_as_primary {
+        let (res, preview_message_tx) = if registered_as_primary {
             let id = primary.id.clone();
 
             if let Some(entry) = entry {
@@ -325,8 +342,13 @@ impl ServerState {
             self.preview
                 .start(cli_args, previewer, id, false, is_background)
         } else {
-            Err(internal_error("entry file must be provided"))
+            return Err(internal_error("entry file must be provided"));
+        };
+
+        if cfg!(all(feature = "web", feature = "preview")) {
+            self.preview_message_tx = preview_message_tx;
         }
+        res
     }
 }
 
@@ -340,6 +362,8 @@ pub struct PreviewState {
     pub(crate) watchers: ProjectPreviewState,
     /// Whether to send show document requests with customized notification.
     pub customized_show_document: bool,
+    /// The preview actor state
+    preview_actor: Option<PreviewActor>,
 }
 
 impl PreviewState {
@@ -351,22 +375,28 @@ impl PreviewState {
     ) -> Self {
         let (preview_tx, preview_rx) = mpsc::unbounded_channel();
 
-        client.handle.spawn(
-            PreviewActor {
-                client: client.clone().to_untyped(),
-                tabs: HashMap::default(),
-                preview_rx,
-                watchers: watchers.clone(),
-            }
-            .run(),
-        );
-
-        Self {
-            client,
+        let mut preview = PreviewState {
+            client: client.clone(),
             preview_tx,
-            watchers,
+            watchers: watchers.clone(),
             customized_show_document: config.customized_show_document,
+            preview_actor: None,
+        };
+
+        let preview_actor = PreviewActor {
+            client: client.clone().to_untyped(),
+            tabs: HashMap::default(),
+            preview_rx,
+            watchers: watchers.clone(),
+        };
+
+        if cfg!(feature = "system") {
+            client.handle.spawn(preview_actor.run());
+        } else {
+            preview.preview_actor = Some(preview_actor);
         }
+
+        preview
     }
 
     pub(crate) fn stop_all(&mut self) {
@@ -395,7 +425,10 @@ impl PreviewState {
         project_id: ProjectInsId,
         is_primary: bool,
         is_background: bool,
-    ) -> SchedulableResponse<StartPreviewResponse> {
+    ) -> (
+        SchedulableResponse<StartPreviewResponse>,
+        Option<mpsc::UnboundedSender<WsMessage>>,
+    ) {
         let compile_handler = Arc::new(ProjectPreviewHandler {
             project_id,
             client: Box::new(self.client.clone().to_untyped()),
@@ -406,7 +439,7 @@ impl PreviewState {
         log::info!("PreviewTask({task_id}): arguments: {args:#?}");
 
         if !args.static_file_host.is_empty() && (args.static_file_host != args.data_plane_host) {
-            return Err(internal_error("--static-file-host is removed"));
+            return (Err(internal_error("--static-file-host is removed")), None);
         }
 
         let (lsp_tx, lsp_rx) = ControlPlaneTx::new(false);
@@ -416,7 +449,10 @@ impl PreviewState {
             mut shutdown_rx,
         } = lsp_rx;
 
+        #[cfg(feature = "system")]
         let (websocket_tx, websocket_rx) = mpsc::unbounded_channel();
+        #[cfg(feature = "web")]
+        let (lsp_message_tx, lsp_message_rx) = mpsc::unbounded_channel();
 
         let previewer = previewer.build(lsp_tx, compile_handler.clone());
 
@@ -466,48 +502,79 @@ impl PreviewState {
         });
 
         let preview_tx = self.preview_tx.clone();
-        just_future(async move {
-            let mut previewer = previewer.await;
-            bind_streams(&mut previewer, websocket_rx);
+        (
+            just_future(async move {
+                let mut previewer = previewer.await;
+                #[cfg(feature = "system")]
+                bind_streams(&mut previewer, websocket_rx);
+                #[cfg(feature = "web")]
+                bind_lsp_channel(&mut previewer, lsp_message_rx);
 
-            // Put a fence to ensure the previewer can receive the first compilation.
-            // The fence must be put after the previewer is initialized.
-            compile_handler.flush_compile();
+                // Put a fence to ensure the previewer can receive the first compilation.
+                // The fence must be put after the previewer is initialized.
+                compile_handler.flush_compile();
 
-            // Replace the data plane port in the html to self
-            let frontend_html = frontend_html(TYPST_PREVIEW_HTML, args.preview.preview_mode, "/");
+                // Replace the data plane port in the html to self
+                let frontend_html =
+                    frontend_html(TYPST_PREVIEW_HTML, args.preview.preview_mode, "/");
 
-            let srv = make_http_server(frontend_html, args.data_plane_host, websocket_tx).await;
-            let addr = srv.addr;
-            log::info!("PreviewTask({task_id}): preview server listening on: {addr}");
+                #[cfg(feature = "system")]
+                let (srv, addr) = {
+                    let srv =
+                        make_http_server(frontend_html, args.data_plane_host, websocket_tx).await;
+                    let addr = srv.addr;
+                    log::info!("PreviewTask({task_id}): preview server listening on: {addr}");
+                    (srv, addr)
+                };
 
-            let resp = StartPreviewResponse {
-                static_server_port: Some(addr.port()),
-                static_server_addr: Some(addr.to_string()),
-                data_plane_port: Some(addr.port()),
-                is_primary,
-            };
+                let resp = StartPreviewResponse {
+                    #[cfg(feature = "system")]
+                    static_server_port: Some(addr.port()),
+                    #[cfg(feature = "system")]
+                    static_server_addr: Some(addr.to_string()),
+                    #[cfg(feature = "system")]
+                    data_plane_port: Some(addr.port()),
+                    is_primary,
+                };
 
-            #[cfg(feature = "open")]
-            if open_in_browser {
-                open::that_detached(format!("http://127.0.0.1:{}", addr.port()))
-                    .log_error("failed to open browser for preview");
-            }
+                #[cfg(feature = "open")]
+                if open_in_browser {
+                    open::that_detached(format!("http://127.0.0.1:{}", addr.port()))
+                        .log_error("failed to open browser for preview");
+                }
 
-            let sent = preview_tx.send(PreviewRequest::Started(PreviewTab {
-                task_id,
-                previewer,
-                srv,
-                ctl_tx,
-                compile_handler,
-                is_primary,
-                is_background,
-            }));
-            sent.map_err(|_| internal_error("failed to register preview tab"))?;
+                let sent = preview_tx.send(PreviewRequest::Started(PreviewTab {
+                    task_id,
+                    previewer,
+                    #[cfg(feature = "system")]
+                    srv,
+                    ctl_tx,
+                    compile_handler,
+                    is_primary,
+                    is_background,
+                }));
+                sent.map_err(|_| internal_error("failed to register preview tab"))?;
 
-            Ok(resp)
-        })
+                Ok(resp)
+            }),
+            Some(lsp_message_tx),
+        )
     }
+
+    #[cfg(not(feature = "system"))]
+    /// Schedules the async tasks of the server on some paths. This is used to
+    /// run the server in passive context, for example, in the web
+    /// environment where the server is run in background.
+    pub(crate) fn schedule_async(&mut self) {
+        // TODO: use this
+        if let Some(preview_actor) = self.preview_actor.as_mut() {
+            preview_actor.step();
+        }
+    }
+
+    #[cfg(feature = "system")]
+    #[inline(always)]
+    pub(crate) fn schedule_async(&mut self) {}
 
     /// Kill a preview task. Ignore if the task is not found.
     pub fn kill(&self, task_id: String) -> AnySchedulableResponse {
@@ -560,6 +627,24 @@ impl Notification for NotifDocumentOutline {
     const METHOD: &'static str = "tinymist/documentOutline";
 }
 
+fn path_to_file_url(path: &Path) -> Result<Url, Box<dyn std::error::Error>> {
+    #[cfg(any(unix, windows, target_os = "redox", target_os = "wasi"))]
+    {
+        Url::from_file_path(path).map_err(|_| "Invalid file path".into())
+    }
+
+    #[cfg(not(any(unix, windows, target_os = "redox", target_os = "wasi")))]
+    {
+        let path_str = path.to_string_lossy();
+        let url_str = if path_str.starts_with('/') {
+            format!("file://{}", path_str)
+        } else {
+            format!("file:///{}", path_str.replace('\\', "/"))
+        };
+        Ok(Url::parse(&url_str)?)
+    }
+}
+
 fn send_show_document(client: &TypedLspClient<PreviewState>, s: &DocToSrcJumpInfo, tid: &str) {
     let range_start = s.start.map(|(l, c)| LspPosition {
         line: l as u32,
@@ -576,7 +661,7 @@ fn send_show_document(client: &TypedLspClient<PreviewState>, s: &DocToSrcJumpInf
     };
 
     // todo: resolve uri if any
-    let uri = match Url::from_file_path(Path::new(&s.filepath)) {
+    let uri = match path_to_file_url(Path::new(&s.filepath)) {
         Ok(uri) => uri,
         Err(e) => {
             log::error!(
@@ -602,6 +687,7 @@ fn send_show_document(client: &TypedLspClient<PreviewState>, s: &DocToSrcJumpInf
     );
 }
 
+#[cfg(all(feature = "system", feature = "preview"))]
 /// Bind the hyper websocket streams to the previewer.
 pub fn bind_streams(
     previewer: &mut Previewer,
@@ -631,4 +717,58 @@ pub fn bind_streams(
                 }))
         },
     );
+}
+
+#[cfg(feature = "web")]
+pub struct LspMessageAdapter {
+    rx: mpsc::UnboundedReceiver<WsMessage>,
+}
+
+#[cfg(feature = "web")]
+impl futures::Sink<WsMessage> for LspMessageAdapter {
+    type Error = reflexo_typst::Error;
+
+    fn poll_ready(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn start_send(self: Pin<&mut Self>, _item: WsMessage) -> Result<(), Self::Error> {
+        // 暂时忽略发送，后续步骤会处理
+        Ok(())
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+}
+
+#[cfg(feature = "web")]
+impl futures::Stream for LspMessageAdapter {
+    type Item = Result<WsMessage, reflexo_typst::Error>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.rx.poll_recv(cx) {
+            Poll::Ready(Some(msg)) => Poll::Ready(Some(Ok(msg))),
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+#[cfg(feature = "web")]
+pub fn bind_lsp_channel(
+    previewer: &mut Previewer,
+    lsp_message_rx: mpsc::UnboundedReceiver<WsMessage>,
+) {
+    let (adapter_tx, adapter_rx) = mpsc::unbounded_channel();
+
+    adapter_tx
+        .send(async move { LspMessageAdapter { rx: lsp_message_rx } })
+        .ok();
+
+    previewer.start_data_plane(adapter_rx, |adapter: LspMessageAdapter| Ok(adapter));
 }

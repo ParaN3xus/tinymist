@@ -138,7 +138,6 @@ pub struct Runtimes {
 impl Default for Runtimes {
     fn default() -> Self {
         let tokio_runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
             .build()
             .unwrap();
 

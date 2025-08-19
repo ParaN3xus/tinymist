@@ -9,14 +9,16 @@ use tinymist_std::error::IgnoreLogging;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::project::ProjectPreviewState;
-use crate::tool::preview::{HttpServer, ProjectPreviewHandler};
-
+#[cfg(all(feature = "system", feature = "preview"))]
+use crate::tool::preview::HttpServer;
+use crate::tool::preview::ProjectPreviewHandler;
 pub struct PreviewTab {
     /// Task ID
     pub task_id: String,
     /// Previewer
     pub previewer: Previewer,
     /// Http Server for Previewer
+    #[cfg(all(feature = "system", feature = "preview"))]
     pub srv: HttpServer,
     /// Control plane message sender
     pub ctl_tx: mpsc::UnboundedSender<ControlPlaneMessage>,
@@ -47,33 +49,45 @@ pub struct PreviewActor {
 impl PreviewActor {
     pub async fn run(mut self) {
         while let Some(req) = self.preview_rx.recv().await {
-            match req {
-                PreviewRequest::Started(tab) => {
-                    self.tabs.insert(tab.task_id.clone(), tab);
+            self.handle(req);
+        }
+
+        log::info!("preview actor is stopped");
+    }
+
+    pub fn step(&mut self) {
+        while let Ok(req) = self.preview_rx.try_recv() {
+            self.handle(req);
+        }
+    }
+
+    fn handle(&mut self, req: PreviewRequest) {
+        match req {
+            PreviewRequest::Started(tab) => {
+                self.tabs.insert(tab.task_id.clone(), tab);
+            }
+            PreviewRequest::Kill(task_id, tx) => {
+                self.kill(task_id, tx);
+            }
+            PreviewRequest::Scroll(task_id, req) => {
+                self.scroll(task_id, req);
+            }
+            PreviewRequest::KillAll(tx) => {
+                for task_id in self.tabs.keys().cloned().collect::<Vec<_>>() {
+                    let (tx, _rx) = oneshot::channel();
+                    self.kill(task_id, tx);
                 }
-                PreviewRequest::Kill(task_id, tx) => {
-                    self.kill(task_id, tx).await;
-                }
-                PreviewRequest::Scroll(task_id, req) => {
-                    self.scroll(task_id, req).await;
-                }
-                PreviewRequest::KillAll(tx) => {
-                    for task_id in self.tabs.keys().cloned().collect::<Vec<_>>() {
-                        let (tx, _rx) = oneshot::channel();
-                        self.kill(task_id, tx).await;
-                    }
-                    let _ = tx.send(Ok(JsonValue::Null));
-                }
-                PreviewRequest::ScrollAll(req) => {
-                    for task_id in self.tabs.keys().cloned().collect::<Vec<_>>() {
-                        self.scroll(task_id, req.clone()).await;
-                    }
+                let _ = tx.send(Ok(JsonValue::Null));
+            }
+            PreviewRequest::ScrollAll(req) => {
+                for task_id in self.tabs.keys().cloned().collect::<Vec<_>>() {
+                    self.scroll(task_id, req.clone());
                 }
             }
         }
     }
 
-    async fn kill(&mut self, task_id: String, tx: oneshot::Sender<LspResult<JsonValue>>) {
+    fn kill(&mut self, task_id: String, tx: oneshot::Sender<LspResult<JsonValue>>) {
         log::info!("PreviewTask({task_id}): killing");
 
         if self.tabs.get(&task_id).is_some_and(|tab| tab.is_background) {
@@ -106,12 +120,16 @@ impl PreviewActor {
         let client = self.client.clone();
         self.client.handle.spawn(async move {
             tab.previewer.stop().await;
+
+            #[cfg(feature = "system")]
             let _ = tab.srv.shutdown_tx.send(());
 
             // Wait for previewer to stop
             log::info!("PreviewTask({task_id}): wait for previewer to stop");
             tab.previewer.join().await;
             log::info!("PreviewTask({task_id}): wait for static server to stop");
+
+            #[cfg(feature = "system")]
             let _ = tab.srv.join.await;
 
             log::info!("PreviewTask({task_id}): killed");
@@ -122,7 +140,7 @@ impl PreviewActor {
         });
     }
 
-    async fn scroll(&mut self, task_id: String, req: ControlPlaneMessage) -> Option<()> {
+    fn scroll(&mut self, task_id: String, req: ControlPlaneMessage) -> Option<()> {
         self.tabs.get(&task_id)?.ctl_tx.send(req).ok()
     }
 }

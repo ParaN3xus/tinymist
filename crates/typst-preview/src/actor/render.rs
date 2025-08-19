@@ -6,6 +6,7 @@ use reflexo_typst::debug_loc::{
 };
 use reflexo_vec2svg::IncrSvgDocServer;
 use tinymist_std::typst::TypstDocument;
+use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{broadcast, mpsc};
 
 use super::{editor::EditorActorRequest, webview::WebviewActorRequest};
@@ -70,7 +71,7 @@ impl RenderActor {
         res
     }
 
-    async fn process_message(&mut self, msg: RenderActorRequest) -> bool {
+    fn process_message(&mut self, msg: RenderActorRequest) -> bool {
         log::trace!("RenderActor: received message: {msg:?}");
 
         let res = msg.is_full_render();
@@ -124,40 +125,54 @@ impl RenderActor {
 
     pub async fn run(mut self) {
         loop {
-            let mut has_full_render = false;
-            log::debug!("RenderActor: waiting for message");
-            match self.mailbox.recv().await {
-                Ok(msg) => {
-                    has_full_render |= self.process_message(msg).await;
-                }
-                Err(broadcast::error::RecvError::Closed) => {
-                    log::info!("RenderActor: no more messages");
-                    break;
-                }
-                Err(broadcast::error::RecvError::Lagged(_)) => {
-                    log::info!("RenderActor: lagged message. Some events are dropped");
-                }
-            }
-            // read the queue to empty
-            while let Ok(msg) = self.mailbox.try_recv() {
-                has_full_render |= self.process_message(msg).await;
-            }
-            // if a full render is requested, we render the latest document
-            // otherwise, we render the incremental changes for only once
-            let has_full_render = has_full_render;
-            log::debug!("RenderActor: has_full_render: {has_full_render}");
-            let Some(document) = self.view.read().as_ref().and_then(|view| view.doc()) else {
-                log::info!("RenderActor: document is not ready");
-                continue;
-            };
-
-            let data = self.render(has_full_render, &document);
-            let Ok(_) = self.svg_sender.send(data) else {
-                log::info!("RenderActor: svg_sender is dropped");
+            let req = self.mailbox.recv().await;
+            if self.handle(req) {
                 break;
-            };
+            }
         }
         log::info!("RenderActor: exiting")
+    }
+
+    pub fn step(&mut self) {
+        while let Ok(req) = self.mailbox.try_recv() {
+            self.handle(Ok(req));
+        }
+    }
+
+    fn handle(&mut self, req: Result<RenderActorRequest, RecvError>) -> bool {
+        let mut has_full_render = false;
+        log::debug!("RenderActor: waiting for message");
+        match req {
+            Ok(msg) => {
+                has_full_render |= self.process_message(msg);
+            }
+            Err(broadcast::error::RecvError::Closed) => {
+                log::info!("RenderActor: no more messages");
+                return true; // break
+            }
+            Err(broadcast::error::RecvError::Lagged(_)) => {
+                log::info!("RenderActor: lagged message. Some events are dropped");
+            }
+        }
+        // read the queue to empty
+        while let Ok(msg) = self.mailbox.try_recv() {
+            has_full_render |= self.process_message(msg);
+        }
+        // if a full render is requested, we render the latest document
+        // otherwise, we render the incremental changes for only once
+        let has_full_render = has_full_render;
+        log::debug!("RenderActor: has_full_render: {has_full_render}");
+        let Some(document) = self.view.read().as_ref().and_then(|view| view.doc()) else {
+            log::info!("RenderActor: document is not ready");
+            return false; // continue
+        };
+
+        let data = self.render(has_full_render, &document);
+        let Ok(_) = self.svg_sender.send(data) else {
+            log::info!("RenderActor: svg_sender is dropped");
+            return true; // break
+        };
+        return false;
     }
 
     fn render(&mut self, has_full_render: bool, document: &TypstDocument) -> Vec<u8> {
@@ -343,45 +358,51 @@ impl OutlineRenderActor {
         }
     }
 
+    fn handle(&mut self, req: Result<RenderActorRequest, RecvError>) -> bool {
+        log::debug!("OutlineRenderActor: waiting for message");
+        match req {
+            Ok(msg) => {
+                log::debug!("OutlineRenderActor: received message: {msg:?}");
+            }
+            Err(broadcast::error::RecvError::Closed) => {
+                log::info!("OutlineRenderActor: no more messages");
+                return true; // break
+            }
+            Err(broadcast::error::RecvError::Lagged(_)) => {
+                log::info!("OutlineRenderActor: lagged message. Some events are dropped");
+            }
+        }
+        // read the queue to empty
+        while self.signal.try_recv().is_ok() {}
+        // if a full render is requested, we render the latest document
+        // otherwise, we render the incremental changes for only once
+        let Some(document) = self.document.read().as_ref().and_then(|view| view.doc()) else {
+            log::info!("OutlineRenderActor: document is not ready");
+            return false; // continue
+        };
+        let data = self.outline(&document);
+        log::debug!("OutlineRenderActor: sending outline");
+        let Ok(_) = self.editor_tx.send(EditorActorRequest::Outline(data)) else {
+            log::info!("OutlineRenderActor: outline_sender is dropped");
+            return true; // break
+        };
+        return false;
+    }
+
     pub async fn run(mut self) {
         loop {
-            log::debug!("OutlineRenderActor: waiting for message");
-            match self.signal.recv().await {
-                Ok(msg) => {
-                    log::debug!("OutlineRenderActor: received message: {msg:?}");
-                }
-                Err(broadcast::error::RecvError::Closed) => {
-                    log::info!("OutlineRenderActor: no more messages");
-                    break;
-                }
-                Err(broadcast::error::RecvError::Lagged(_)) => {
-                    log::info!("OutlineRenderActor: lagged message. Some events are dropped");
-                }
-            }
-            // read the queue to empty
-            while self.signal.try_recv().is_ok() {}
-            // if a full render is requested, we render the latest document
-            // otherwise, we render the incremental changes for only once
-            let Some(document) = self.document.read().as_ref().and_then(|view| view.doc()) else {
-                log::info!("OutlineRenderActor: document is not ready");
-                continue;
-            };
-            let data = self.outline(&document).await;
-            log::debug!("OutlineRenderActor: sending outline");
-            let Ok(_) = self.editor_tx.send(EditorActorRequest::Outline(data)) else {
-                log::info!("OutlineRenderActor: outline_sender is dropped");
+            let req = self.signal.recv().await;
+            if self.handle(req) {
                 break;
-            };
+            }
         }
         log::info!("OutlineRenderActor: exiting")
     }
 
-    async fn outline(&self, document: &TypstDocument) -> Outline {
-        self.span_interner
-            .with_writer(|interner| {
-                interner.reset();
-                crate::outline::outline(interner, document)
-            })
-            .await
+    fn outline(&self, document: &TypstDocument) -> Outline {
+        futures::executor::block_on(self.span_interner.with_writer(|interner| {
+            interner.reset();
+            crate::outline::outline(interner, document)
+        }))
     }
 }
