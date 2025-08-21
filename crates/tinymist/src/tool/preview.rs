@@ -30,8 +30,8 @@ use serde_json::Value as JsonValue;
 use sync_ls::just_ok;
 use tinymist_assets::TYPST_PREVIEW_HTML;
 use tinymist_preview::{
-    frontend_html, ControlPlaneMessage, ControlPlaneRx, ControlPlaneTx, DocToSrcJumpInfo,
-    PreviewBuilder, PreviewConfig, PreviewMode, Previewer, WsMessage,
+    frontend_html, ControlPlaneMessage, ControlPlaneResponse, ControlPlaneRx, ControlPlaneTx,
+    DocToSrcJumpInfo, PreviewBuilder, PreviewConfig, PreviewMode, Previewer, WsMessage,
 };
 use tinymist_query::{LspPosition, LspRange};
 use tinymist_std::error::IgnoreLogging;
@@ -360,6 +360,7 @@ pub struct PreviewState {
     client: TypedLspClient<PreviewState>,
     /// The backend running actor.
     preview_tx: mpsc::UnboundedSender<PreviewRequest>,
+    resp_rx: Option<mpsc::UnboundedReceiver<ControlPlaneResponse>>,
     /// the watchers for the preview
     pub(crate) watchers: ProjectPreviewState,
     /// Whether to send show document requests with customized notification.
@@ -380,6 +381,7 @@ impl PreviewState {
         let mut preview = PreviewState {
             client: client.clone(),
             preview_tx,
+            resp_rx: None,
             watchers: watchers.clone(),
             customized_show_document: config.customized_show_document,
             preview_actor: None,
@@ -420,7 +422,7 @@ impl PreviewState {
 impl PreviewState {
     /// Start a preview on a given compiler.
     pub fn start(
-        &self,
+        &mut self,
         args: PreviewCliArgs,
         previewer: PreviewBuilder,
         // compile_handler: Arc<CompileHandler>,
@@ -451,6 +453,11 @@ impl PreviewState {
             mut shutdown_rx,
         } = lsp_rx;
 
+        #[cfg(feature = "web")]
+        {
+            self.resp_rx = Some(resp_rx);
+        }
+
         let (adapter_tx, adapter_rx) = mpsc::unbounded_channel();
 
         let previewer = previewer.build(lsp_tx, compile_handler.clone());
@@ -459,28 +466,13 @@ impl PreviewState {
         let tid = task_id.clone();
         let client = self.client.clone();
         let customized_show_document = self.customized_show_document;
+
+        #[cfg(not(feature = "web"))]
         self.client.handle.spawn(async move {
             let mut resp_rx = resp_rx;
             while let Some(resp) = resp_rx.recv().await {
-                use tinymist_preview::ControlPlaneResponse::*;
-
-                match resp {
-                    // ignoring compile status per task.
-                    CompileStatus(..) => {}
-                    SyncEditorChanges(..) => {
-                        log::warn!("PreviewTask({tid}): is sending SyncEditorChanges in lsp mode");
-                    }
-                    EditorScrollTo(s) => {
-                        if customized_show_document {
-                            client.send_notification::<ScrollSource>(&s)
-                        } else {
-                            send_show_document(&client, &s, &tid);
-                        }
-                    }
-                    Outline(s) => client.send_notification::<NotifDocumentOutline>(&s),
-                }
+                self.handle_preview_response(resp, &tid);
             }
-
             log::info!("PreviewTask({tid}): response channel closed");
         });
 
@@ -577,6 +569,28 @@ impl PreviewState {
         )
     }
 
+    fn handle_preview_response(&self, resp: ControlPlaneResponse, tid: &str) {
+        use tinymist_preview::ControlPlaneResponse::*;
+
+        match resp {
+            // ignoring compile status per task.
+            CompileStatus(..) => {}
+            SyncEditorChanges(..) => {
+                log::warn!("PreviewTask({tid}): is sending SyncEditorChanges in lsp mode");
+            }
+            EditorScrollTo(s) => {
+                log::info!("PreviewState: resp_rx received EditorScrollTo, sending notification");
+
+                if self.customized_show_document {
+                    self.client.send_notification::<ScrollSource>(&s)
+                } else {
+                    send_show_document(&self.client, &s, &tid);
+                }
+            }
+            Outline(s) => self.client.send_notification::<NotifDocumentOutline>(&s),
+        }
+    }
+
     #[cfg(feature = "web")]
     /// Schedules the async tasks of the server on some paths. This is used to
     /// run the server in passive context, for example, in the web
@@ -584,6 +598,17 @@ impl PreviewState {
     pub(crate) fn schedule_async(&mut self) {
         if let Some(preview_actor) = self.preview_actor.as_mut() {
             preview_actor.step();
+        }
+
+        let mut responses = Vec::new();
+        if let Some(resp_rx) = self.resp_rx.as_mut() {
+            while let Ok(resp) = resp_rx.try_recv() {
+                responses.push(resp);
+            }
+        }
+
+        for resp in responses {
+            self.handle_preview_response(resp, "web");
         }
     }
 
