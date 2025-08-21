@@ -20,6 +20,7 @@ use tokio::sync::mpsc;
 use typst::syntax::Source;
 
 use crate::actor::editor::{EditorActor, EditorRequest};
+use crate::actor::preview::PreviewActor;
 use crate::input::FsChange;
 use crate::lsp::query::OnEnter;
 use crate::project::{EntryResolver, LspInterrupt, ProjectInsId, ProjectState};
@@ -113,58 +114,6 @@ pub struct ServerState {
     pub(crate) preview_message_tx: Option<mpsc::UnboundedSender<WsMessage>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum PreviewNotificationParams {
-    /// WebSocket message from client to preview server
-    #[serde(rename = "websocket-message")]
-    WebSocketMessage {
-        /// The message content (text or binary data as base64)
-        content: PreviewMessageContent,
-    },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "format")]
-pub enum PreviewMessageContent {
-    /// Text message
-    #[serde(rename = "text")]
-    Text { data: String },
-    /// Binary message (encoded as base64)
-    #[serde(rename = "binary")]
-    Binary { data: String },
-}
-
-impl PreviewMessageContent {
-    /// Convert to WsMessage
-    pub fn to_ws_message(self) -> WsMessage {
-        match self {
-            PreviewMessageContent::Text { data } => WsMessage::Text(data),
-            PreviewMessageContent::Binary { data } => {
-                let bytes = general_purpose::STANDARD.decode(data).unwrap_or_default();
-                WsMessage::Binary(bytes)
-            }
-        }
-    }
-    /// Create from WsMessage
-    pub fn from_ws_message(msg: WsMessage) -> Self {
-        match msg {
-            WsMessage::Text(text) => PreviewMessageContent::Text { data: text },
-            WsMessage::Binary(bytes) => PreviewMessageContent::Binary {
-                data: general_purpose::STANDARD.encode(bytes),
-            },
-        }
-    }
-}
-
-/// Typst Preview Notification
-#[derive(Debug)]
-pub enum PreviewNotification {}
-impl Notification for PreviewNotification {
-    type Params = PreviewNotificationParams;
-    const METHOD: &'static str = "typst-preview";
-}
-
 /// Getters and the main loop.
 impl ServerState {
     /// Create a new language server.
@@ -218,6 +167,8 @@ impl ServerState {
         );
 
         Self {
+            #[cfg(all(feature = "web", feature = "preview"))]
+            preview_message_tx: None,
             #[cfg(feature = "dap")]
             debug: crate::dap::DebugState::default(),
             #[cfg(feature = "lock")]
@@ -422,7 +373,7 @@ impl ServerState {
             .with_resource("/package/symbol", State::resource_package_symbols)
             .with_resource("/package/docs", State::resource_package_docs);
 
-        #[cfg(all(feature = "system", feature = "preview"))]
+        #[cfg(all(feature = "web", feature = "preview"))]
         let mut provider =
             provider.with_notification::<PreviewNotification>(State::handle_preview_notification);
 
@@ -458,7 +409,7 @@ impl ServerState {
             .with_request::<request::Threads>(Self::debug_threads)
     }
 
-    #[cfg(not(feature = "system"))]
+    #[cfg(feature = "web")]
     /// Schedules the async tasks of the server on some paths. This is used to
     /// run the server in passive context, for example, in the web
     /// environment where the server is not run in background.
@@ -467,6 +418,7 @@ impl ServerState {
             editor_actor.step();
         }
         self.handle_deps();
+        self.preview.schedule_async();
     }
 
     #[cfg(feature = "system")]

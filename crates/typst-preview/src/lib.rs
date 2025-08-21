@@ -11,12 +11,20 @@ pub use crate::actor::editor::{
 };
 #[cfg(feature = "web")]
 use crate::actor::render::RenderActor;
+#[cfg(feature = "web")]
+use crate::actor::webview::WebviewActor;
+pub use crate::actor::webview::{LspMessageAdapter, PreviewMessageWsMessageTransition};
 pub use crate::outline::Outline;
 
+#[cfg(feature = "web")]
+use std::cell::RefCell;
+#[cfg(feature = "web")]
+use std::rc::Rc;
 use std::sync::{Arc, OnceLock};
 use std::{collections::HashMap, future::Future, path::PathBuf, pin::Pin};
 
 use futures::StreamExt;
+use futures::lock::Mutex;
 use futures::sink::SinkExt;
 use reflexo_typst::Error;
 use reflexo_typst::args::TaskWhen;
@@ -27,9 +35,11 @@ use tinymist_std::typst::TypstDocument;
 use tokio::sync::{broadcast, mpsc};
 use typst::{layout::Position, syntax::Span};
 
+use std::sync::Mutex as SyncMutex;
+
 use crate::actor::editor::{EditorActor, EditorActorRequest};
 use crate::actor::render::RenderActorRequest;
-use crate::actor::webview::WebviewActorRequest;
+use crate::actor::webview::{WebviewActorConnectionAdaptor, WebviewActorRequest};
 use crate::debug_loc::SpanInterner;
 
 type StopFuture = Pin<Box<dyn Future<Output = ()> + Send + Sync>>;
@@ -72,11 +82,10 @@ pub fn frontend_html(html: &str, mode: PreviewMode, to: &str) -> String {
 }
 
 /// Shortcut to create a previewer.
-pub async fn preview(
-    config: PreviewConfig,
-    conn: ControlPlaneTx,
-    server: Arc<impl EditorServer>,
-) -> Previewer {
+pub async fn preview<T>(config: PreviewConfig, conn: ControlPlaneTx, server: Arc<T>) -> Previewer
+where
+    T: EditorServer,
+{
     PreviewBuilder::new(config).build(conn, server).await
 }
 
@@ -86,9 +95,13 @@ pub struct Previewer {
     data_plane_resources: Option<(DataPlane, Option<mpsc::Sender<()>>, mpsc::Receiver<()>)>,
     control_plane_handle: Option<tokio::task::JoinHandle<()>>,
     #[cfg(feature = "web")]
-    editor_actor: Option<Box<dyn std::any::Any + Send>>,
+    editor_actor: Option<EditorActor>,
     #[cfg(feature = "web")]
-    render_actor: Option<RenderActor>,
+    render_actor: Arc<SyncMutex<Option<RenderActor>>>,
+    // render_actor: Option<RenderActor>,
+    #[cfg(feature = "web")]
+    webview_actor: Arc<SyncMutex<Option<WebviewActor>>>,
+    // webview_actor: Option<WebviewActor>,
 }
 
 impl Previewer {
@@ -99,6 +112,15 @@ impl Previewer {
         }
     }
 
+    pub fn schedule_async(&mut self) {
+        if let Some(ref mut render_actor) = *self.render_actor.lock().unwrap() {
+            render_actor.step();
+        }
+        if let Some(editor_actor) = self.editor_actor.as_mut() {
+            // editor_actor.step();
+        }
+    }
+
     /// Join all the previewer actors. Note: send stop request first.
     pub async fn join(mut self) {
         let data_plane_handle = self.data_plane_handle.take().expect("must bind data plane");
@@ -106,44 +128,46 @@ impl Previewer {
     }
 
     /// Listen streams that accepting data plane messages.
-    pub fn start_data_plane<
-        C: futures::Sink<WsMessage, Error = reflexo_typst::Error>
-            + futures::Stream<Item = Result<WsMessage, reflexo_typst::Error>>
-            + Send
-            + 'static,
-        S: 'static,
-        SFut: Future<Output = S> + Send + 'static,
-    >(
+    pub fn start_data_plane<S: 'static, SFut: Future<Output = S> + Send + 'static>(
         &mut self,
         mut streams: mpsc::UnboundedReceiver<SFut>,
-        caster: impl Fn(S) -> Result<C, Error> + Send + Sync + Copy + 'static,
+        caster: impl Fn(S) -> Result<Mutex<WebviewActorConnectionAdaptor>, Error>
+        + Send
+        + Sync
+        + Copy
+        + 'static,
     ) {
         let idle_timeout = reflexo_typst::time::Duration::from_secs(5);
         let (conn_handler, shutdown_tx, mut shutdown_data_plane_rx) =
             self.data_plane_resources.take().unwrap();
         let (alive_tx, mut alive_rx) = mpsc::unbounded_channel::<()>();
-
+        let webview_actor_ref = self.webview_actor.clone();
+        let render_actor_ref = self.render_actor.clone();
         let recv = move |conn| {
             let h = conn_handler.clone();
             let alive_tx = alive_tx.clone();
+
             spawn_cpu(async move {
-                let conn: C = caster(conn.await).unwrap();
-                tokio::pin!(conn);
+                let conn = Arc::new(caster(conn.await).unwrap());
 
                 if h.enable_partial_rendering {
-                    conn.send(WsMessage::Binary("partial-rendering,true".into()))
+                    conn.lock()
+                        .await
+                        .send(WsMessage::Binary("partial-rendering,true".into()))
                         .await
                         .log_error("SendPartialRendering");
                 }
                 if !h.invert_colors.is_empty() {
-                    conn.send(WsMessage::Binary(
-                        format!("invert-colors,{}", h.invert_colors).into(),
-                    ))
-                    .await
-                    .log_error("SendInvertColor");
+                    conn.lock()
+                        .await
+                        .send(WsMessage::Binary(
+                            format!("invert-colors,{}", h.invert_colors).into(),
+                        ))
+                        .await
+                        .log_error("SendInvertColor");
                 }
                 let actor::webview::Channels { svg } =
-                    actor::webview::WebviewActor::<'_, C>::set_up_channels();
+                    actor::webview::WebviewActor::set_up_channels();
                 let webview_actor = actor::webview::WebviewActor::new(
                     conn,
                     svg.1,
@@ -152,6 +176,8 @@ impl Previewer {
                     h.editor_tx.clone(),
                     h.renderer_tx.clone(),
                 );
+                *webview_actor_ref.lock().unwrap() = Some(webview_actor);
+
                 let render_actor = actor::render::RenderActor::new(
                     h.renderer_tx.subscribe(),
                     h.doc_sender.clone(),
@@ -160,8 +186,9 @@ impl Previewer {
                     h.webview_tx,
                 );
 
-                // self.render_actor = Some(render_actor);
-                #[cfg(feature = "system")]
+                *render_actor_ref.lock().unwrap() = Some(render_actor);
+
+                #[cfg(not(feature = "web"))]
                 tokio::spawn(render_actor.run());
 
                 let outline_render_actor = actor::render::OutlineRenderActor::new(
@@ -170,7 +197,7 @@ impl Previewer {
                     h.editor_tx.clone(),
                     h.span_interner,
                 );
-                #[cfg(feature = "system")]
+                #[cfg(not(feature = "web"))]
                 tokio::spawn(outline_render_actor.run());
 
                 struct FinallySend(mpsc::UnboundedSender<()>);
@@ -181,7 +208,7 @@ impl Previewer {
                 }
 
                 let _send = FinallySend(alive_tx);
-                #[cfg(feature = "system")]
+                #[cfg(not(feature = "web"))]
                 webview_actor.run().await;
             })
         };
@@ -206,7 +233,10 @@ impl Previewer {
                         #[cfg(not(feature = "web"))]
                         tokio::spawn(recv(stream));
                         #[cfg(feature = "web")]
-                        recv(stream);
+                        {
+                            recv(stream);
+                            return;
+                        }
                     },
                     _ = alive_rx.recv() => {
                         alive_cnt -= 1;
@@ -311,7 +341,7 @@ impl PreviewBuilder {
         };
         #[cfg(feature = "web")]
         let control_plane_handle = {
-            log::info!("Previewer: editor actor created (web mode)");
+            log::info!("Previewer: editor actor spawned (web mode)");
             None
         };
 
@@ -337,9 +367,11 @@ impl PreviewBuilder {
                 })
             })),
             #[cfg(feature = "web")]
-            editor_actor: Some(Box::new(editor_actor)),
+            editor_actor: Some(editor_actor),
             #[cfg(feature = "web")]
-            render_actor: None,
+            render_actor: Arc::new(SyncMutex::new(None)),
+            #[cfg(feature = "web")]
+            webview_actor: Arc::new(SyncMutex::new(None)),
         }
     }
 }
@@ -358,6 +390,18 @@ pub enum Location {
     Src(SourceLocation),
 }
 
+trait EditorServerDyn: Send + Sync + 'static {
+    fn update_memory_files(
+        &self,
+        files: MemoryFiles,
+        reset_shadow: bool,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send + '_>>;
+    fn remove_memory_files(
+        &self,
+        files: MemoryFilesShort,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send + '_>>;
+}
+
 pub trait EditorServer: Send + Sync + 'static {
     fn update_memory_files(
         &self,
@@ -372,6 +416,22 @@ pub trait EditorServer: Send + Sync + 'static {
         _files: MemoryFilesShort,
     ) -> impl Future<Output = Result<(), Error>> + Send {
         async { Ok(()) }
+    }
+}
+
+impl<T: EditorServer> EditorServerDyn for T {
+    fn update_memory_files(
+        &self,
+        files: MemoryFiles,
+        reset_shadow: bool,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send + '_>> {
+        Box::pin(EditorServer::update_memory_files(self, files, reset_shadow))
+    }
+    fn remove_memory_files(
+        &self,
+        files: MemoryFilesShort,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send + '_>> {
+        Box::pin(EditorServer::remove_memory_files(self, files))
     }
 }
 

@@ -59,6 +59,9 @@ impl PreviewActor {
         while let Ok(req) = self.preview_rx.try_recv() {
             self.handle(req);
         }
+        self.tabs.values_mut().for_each(|tab| {
+            tab.previewer.schedule_async();
+        });
     }
 
     fn handle(&mut self, req: PreviewRequest) {
