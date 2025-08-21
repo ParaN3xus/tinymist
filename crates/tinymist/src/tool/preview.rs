@@ -577,7 +577,7 @@ impl PreviewState {
         )
     }
 
-    #[cfg(not(feature = "system"))]
+    #[cfg(feature = "web")]
     /// Schedules the async tasks of the server on some paths. This is used to
     /// run the server in passive context, for example, in the web
     /// environment where the server is run in background.
@@ -587,7 +587,7 @@ impl PreviewState {
         }
     }
 
-    #[cfg(feature = "system")]
+    #[cfg(not(feature = "web"))]
     #[inline(always)]
     pub(crate) fn schedule_async(&mut self) {}
 

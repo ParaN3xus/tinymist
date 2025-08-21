@@ -6,7 +6,7 @@ use reflexo_typst::debug_loc::{
 };
 use reflexo_vec2svg::IncrSvgDocServer;
 use tinymist_std::typst::TypstDocument;
-use tokio::sync::broadcast::error::RecvError;
+use tokio::sync::broadcast::error::{RecvError, TryRecvError};
 use tokio::sync::{broadcast, mpsc};
 
 use super::{editor::EditorActorRequest, webview::WebviewActorRequest};
@@ -168,6 +168,11 @@ impl RenderActor {
         };
 
         let data = self.render(has_full_render, &document);
+        log::debug!(
+            "RenderActor: rendered, svg sender sending data of {} bytes!!!",
+            data.len()
+        );
+
         let Ok(_) = self.svg_sender.send(data) else {
             log::info!("RenderActor: svg_sender is dropped");
             return true; // break
@@ -386,6 +391,13 @@ impl OutlineRenderActor {
             log::info!("OutlineRenderActor: outline_sender is dropped");
             return true; // break
         };
+        return false;
+    }
+
+    pub fn step(&mut self) -> bool {
+        while let Ok(req) = self.signal.try_recv() {
+            self.handle(Ok(req));
+        }
         return false;
     }
 
