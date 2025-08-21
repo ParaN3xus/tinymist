@@ -212,14 +212,13 @@ impl ServerState {
         #[cfg(feature = "web")]
         {
             let content = params.content;
-            self.schedule_async();
 
             if let Some(tx) = &self.preview_message_tx {
                 if tx.is_closed() {
                     log::warn!("Preview server channel is closed, skipping handle");
                     return Ok(());
                 }
-                use tinymist_preview::{PreviewMessageWsMessageTransition, WsMessage};
+                use tinymist_preview::WsMessage;
 
                 let ws_message = match content {
                     PreviewMessageContent::Text { data } => WsMessage::Text(data),
@@ -231,13 +230,15 @@ impl ServerState {
                     }
                 };
                 match tx.send(ws_message) {
-                    Ok(_) => return Ok(()),
+                    Ok(_) => {}
                     Err(err) => {
                         log::error!("Failed to send message: {}", err);
-                        return Ok(());
                     }
                 }
             }
+
+            self.schedule_async();
+
             Ok(())
         }
 
