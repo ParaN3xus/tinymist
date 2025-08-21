@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use tinymist_std::error::IgnoreLogging;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
+use tokio::sync::mpsc::error::TryRecvError;
 
 use crate::actor::render::RenderActorRequest;
 use crate::debug_loc::{InternQuery, SpanInterner};
@@ -104,6 +105,10 @@ impl ControlPlaneTx {
     async fn next(&mut self) -> Option<ControlPlaneMessage> {
         self.ctl_rx.recv().await
     }
+
+    fn try_next(&mut self) -> Result<ControlPlaneMessage, TryRecvError> {
+        self.ctl_rx.try_recv()
+    }
 }
 
 pub struct EditorActor {
@@ -169,90 +174,105 @@ impl EditorActor {
         }
     }
 
+    async fn handle_mailbox_message(&mut self, msg: EditorActorRequest) -> bool {
+        match msg {
+            EditorActorRequest::Shutdown => {
+                log::info!("EditorActor: received exit message");
+                // break;
+                false
+            }
+            EditorActorRequest::DocToSrcJump(jump_info) => {
+                self.editor_conn
+                    .resp_ctl_plane(
+                        "DocToSrcJump",
+                        ControlPlaneResponse::EditorScrollTo(jump_info),
+                    )
+                    .await
+            }
+            EditorActorRequest::DocToSrcJumpResolve(req) => {
+                self.source_scroll_by_span(req.span).await;
+
+                return false;
+            }
+            EditorActorRequest::CompileStatus(status) => {
+                self.editor_conn
+                    .resp_ctl_plane("CompileStatus", ControlPlaneResponse::CompileStatus(status))
+                    .await
+            }
+            EditorActorRequest::Outline(outline) => {
+                self.editor_conn
+                    .resp_ctl_plane("Outline", ControlPlaneResponse::Outline(outline))
+                    .await
+            }
+        }
+    }
+
+    async fn handle_control_panel_message(&mut self, msg: ControlPlaneMessage) {
+        match msg {
+            ControlPlaneMessage::ChangeCursorPosition(cursor_info) => {
+                log::debug!("EditorActor: received message from editor: {cursor_info:?}");
+                self.renderer_sender
+                    .send(RenderActorRequest::ChangeCursorPosition(cursor_info))
+                    .log_error("EditorActor");
+            }
+            ControlPlaneMessage::ResolveSourceLoc(jump_info) => {
+                log::debug!("EditorActor: received message from editor: {jump_info:?}");
+                self.renderer_sender
+                    .send(RenderActorRequest::ResolveSourceLoc(jump_info))
+                    .log_error("EditorActor");
+            }
+            ControlPlaneMessage::PanelScrollByPosition(jump_info) => {
+                log::debug!("EditorActor: received message from editor: {jump_info:?}");
+                self.webview_sender
+                    .send(WebviewActorRequest::ViewportPosition(jump_info.position))
+                    .log_error("EditorActor");
+            }
+            ControlPlaneMessage::DocToSrcJumpResolve(jump_info) => {
+                log::debug!("EditorActor: received message from editor: {jump_info:?}");
+
+                self.source_scroll_by_span(jump_info.span).await;
+            }
+            ControlPlaneMessage::SyncMemoryFiles(req) => {
+                log::debug!(
+                    "EditorActor: processing SYNC memory files: {:?}",
+                    req.files.keys().collect::<Vec<_>>()
+                );
+                handle_error(
+                    "SyncMemoryFiles",
+                    self.server.update_memory_files(req, true).await,
+                );
+            }
+            ControlPlaneMessage::UpdateMemoryFiles(req) => {
+                log::debug!(
+                    "EditorActor: processing UPDATE memory files: {:?}",
+                    req.files.keys().collect::<Vec<_>>()
+                );
+                handle_error(
+                    "UpdateMemoryFiles",
+                    self.server.update_memory_files(req, false).await,
+                );
+            }
+            ControlPlaneMessage::RemoveMemoryFiles(req) => {
+                log::debug!(
+                    "EditorActor: processing REMOVE memory files: {:?}",
+                    req.files
+                );
+                handle_error(
+                    "RemoveMemoryFiles",
+                    self.server.remove_memory_files(req).await,
+                );
+            }
+        }
+    }
+
     pub async fn run(mut self) {
         if self.editor_conn.need_sync_files() {
             self.editor_conn.sync_editor_changes().await;
         }
 
         loop {
-            tokio::select! {
-                Some(msg) = self.mailbox.recv() => {
-                    log::trace!("EditorActor: received message from mailbox: {msg:?}");
-                   let sent = match msg {
-                        EditorActorRequest::Shutdown => {
-                            log::info!("EditorActor: received exit message");
-                            break;
-                        },
-                        EditorActorRequest::DocToSrcJump(jump_info) => {
-                            self.editor_conn.resp_ctl_plane("DocToSrcJump", ControlPlaneResponse::EditorScrollTo(jump_info)).await
-                        },
-                        EditorActorRequest::DocToSrcJumpResolve(req) => {
-                            self.source_scroll_by_span(req.span)
-                                .await;
-
-                            false
-                        },
-                        EditorActorRequest::CompileStatus(status) => {
-                            self.editor_conn.resp_ctl_plane("CompileStatus", ControlPlaneResponse::CompileStatus(status)).await
-                        },
-                        EditorActorRequest::Outline(outline) => {
-                            self.editor_conn.resp_ctl_plane("Outline", ControlPlaneResponse::Outline(outline)).await
-                        }
-                    };
-
-                    if !sent {
-                        break;
-                    }
-                }
-                Some(msg) = self.editor_conn.next() => {
-                    match msg {
-                        ControlPlaneMessage::ChangeCursorPosition(cursor_info) => {
-                            log::debug!("EditorActor: received message from editor: {cursor_info:?}");
-                            self.renderer_sender.send(RenderActorRequest::ChangeCursorPosition(cursor_info)).log_error("EditorActor");
-                        }
-                        ControlPlaneMessage::ResolveSourceLoc(jump_info) => {
-                            log::debug!("EditorActor: received message from editor: {jump_info:?}");
-                            self.renderer_sender.send(RenderActorRequest::ResolveSourceLoc(jump_info)).log_error("EditorActor");
-                        }
-                        ControlPlaneMessage::PanelScrollByPosition(jump_info) => {
-                            log::debug!("EditorActor: received message from editor: {jump_info:?}");
-                            self.webview_sender.send(WebviewActorRequest::ViewportPosition(jump_info.position)).log_error("EditorActor");
-                        }
-                        ControlPlaneMessage::DocToSrcJumpResolve(jump_info) => {
-                            log::debug!("EditorActor: received message from editor: {jump_info:?}");
-
-                            self.source_scroll_by_span(jump_info.span)
-                                .await;
-                        }
-                        ControlPlaneMessage::SyncMemoryFiles(req) => {
-                            log::debug!(
-                                "EditorActor: processing SYNC memory files: {:?}",
-                                req.files.keys().collect::<Vec<_>>()
-                            );
-                            handle_error(
-                                "SyncMemoryFiles",
-                                self.server.update_memory_files(req, true).await,
-                            );
-                        }
-                        ControlPlaneMessage::UpdateMemoryFiles(req) => {
-                            log::debug!(
-                                "EditorActor: processing UPDATE memory files: {:?}",
-                                req.files.keys().collect::<Vec<_>>()
-                            );
-                            handle_error(
-                                "UpdateMemoryFiles",
-                                self.server.update_memory_files(req, false).await,
-                            );
-                        }
-                        ControlPlaneMessage::RemoveMemoryFiles(req) => {
-                            log::debug!("EditorActor: processing REMOVE memory files: {:?}", req.files);
-                            handle_error(
-                                "RemoveMemoryFiles",
-                                self.server.remove_memory_files(req).await,
-                            );
-                        }
-                    };
-                }
+            if self.step_async().await {
+                break;
             }
         }
 
@@ -262,6 +282,37 @@ impl EditorActor {
             log::info!("EditorActor: shutting down whole program");
             std::process::exit(0);
         }
+    }
+
+    pub async fn step_async(&mut self) -> bool {
+        tokio::select! {
+            Some(msg) = self.mailbox.recv() => {
+                log::trace!("EditorActor: received message from mailbox: {msg:?}");
+                let sent = self.handle_mailbox_message(msg).await;
+                return !sent;
+            }
+            Some(msg) = self.editor_conn.next() => {
+                self.handle_control_panel_message(msg).await;
+                return false;
+            }
+        }
+    }
+
+    async fn step_sync_inner(&mut self) -> bool {
+        while let Ok(msg) = self.mailbox.try_recv() {
+            log::trace!("EditorActor: received message from mailbox: {msg:?}");
+            self.handle_mailbox_message(msg).await;
+        }
+        while let Ok(msg) = self.editor_conn.try_next() {
+            log::trace!("EditorActor: received message from mailbox: {msg:?}");
+            self.handle_control_panel_message(msg).await;
+        }
+
+        return false;
+    }
+
+    pub fn step(&mut self) -> bool {
+        futures::executor::block_on(self.step_sync_inner())
     }
 
     async fn source_scroll_by_span(&mut self, span: String) {
