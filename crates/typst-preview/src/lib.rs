@@ -10,7 +10,7 @@ pub use crate::actor::editor::{
     PanelScrollByPositionRequest,
 };
 #[cfg(feature = "web")]
-use crate::actor::render::RenderActor;
+use crate::actor::render::{OutlineRenderActor, RenderActor};
 #[cfg(feature = "web")]
 use crate::actor::webview::WebviewActor;
 pub use crate::actor::webview::{LspMessageAdapter, PreviewMessageWsMessageTransition};
@@ -100,10 +100,10 @@ pub struct Previewer {
     editor_actor: Option<EditorActor>,
     #[cfg(feature = "web")]
     render_actor: Arc<SyncMutex<Option<RenderActor>>>,
-    // render_actor: Option<RenderActor>,
     #[cfg(feature = "web")]
     webview_actor: Arc<SyncMutex<Option<WebviewActor>>>,
-    // webview_actor: Option<WebviewActor>,
+    #[cfg(feature = "web")]
+    outline_render_actor: Arc<SyncMutex<Option<OutlineRenderActor>>>,
 }
 
 impl Previewer {
@@ -115,11 +115,21 @@ impl Previewer {
     }
 
     pub fn schedule_async(&mut self) {
+        if let Some(ref mut webview_actor) = *self.webview_actor.lock().unwrap() {
+            webview_actor.step();
+        }
         if let Some(ref mut render_actor) = *self.render_actor.lock().unwrap() {
             render_actor.step();
         }
+        if let Some(ref mut webview_actor) = *self.webview_actor.lock().unwrap() {
+            webview_actor.step();
+        }
+
         if let Some(editor_actor) = self.editor_actor.as_mut() {
-            // editor_actor.step();
+            editor_actor.step();
+        }
+        if let Some(ref mut outline_render) = *self.outline_render_actor.lock().unwrap() {
+            outline_render.step();
         }
     }
 
@@ -147,6 +157,7 @@ impl Previewer {
         let (alive_tx, mut alive_rx) = mpsc::unbounded_channel::<()>();
         let webview_actor_ref = self.webview_actor.clone();
         let render_actor_ref = self.render_actor.clone();
+        let outline_render_actor_ref = self.outline_render_actor.clone();
         let recv = move |conn| {
             let h = conn_handler.clone();
             let alive_tx = alive_tx.clone();
@@ -189,7 +200,6 @@ impl Previewer {
                     svg.0,
                     h.webview_tx,
                 );
-
                 *render_actor_ref.lock().unwrap() = Some(render_actor);
 
                 #[cfg(not(feature = "web"))]
@@ -201,6 +211,8 @@ impl Previewer {
                     h.editor_tx.clone(),
                     h.span_interner,
                 );
+                *outline_render_actor_ref.lock().unwrap() = Some(outline_render_actor);
+
                 #[cfg(not(feature = "web"))]
                 tokio::spawn(outline_render_actor.run());
 
@@ -302,6 +314,10 @@ impl PreviewBuilder {
     }
 
     pub fn compile_watcher(&self, task_id: String) -> &Arc<CompileWatcher> {
+        log::info!(
+            "PreviewBuilder: creating compile watcher with id: {}",
+            task_id
+        );
         self.compile_watcher.get_or_init(|| {
             Arc::new(CompileWatcher {
                 task_id,
@@ -376,6 +392,8 @@ impl PreviewBuilder {
             render_actor: Arc::new(SyncMutex::new(None)),
             #[cfg(feature = "web")]
             webview_actor: Arc::new(SyncMutex::new(None)),
+            #[cfg(feature = "web")]
+            outline_render_actor: Arc::new(SyncMutex::new(None)),
         }
     }
 }
@@ -554,6 +572,11 @@ impl CompileWatcher {
         match status {
             CompileStatus::CompileSuccess => {
                 // it is ok to ignore the error here
+                log::info!(
+                    "CompileWatcher id {}: Compile succeed! Writing to doc_sender",
+                    self.task_id,
+                );
+
                 *self.doc_sender.write() = Some(view);
 
                 // todo: is it right that ignore zero broadcast receiver?

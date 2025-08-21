@@ -7,8 +7,9 @@ use futures::{SinkExt, StreamExt, lock::Mutex};
 use reflexo_typst::debug_loc::{DocumentPosition, ElementPoint};
 #[cfg(feature = "web")]
 use sync_ls::{PreviewMessageContent, PreviewNotificationParams};
-use tinymist_std::error::IgnoreLogging;
+use tinymist_std::{Error, error::IgnoreLogging};
 use tokio::sync::{broadcast, mpsc};
+use typst::syntax::ast::Bool;
 
 use super::{editor::EditorActorRequest, render::RenderActorRequest};
 use crate::{
@@ -68,6 +69,14 @@ impl LspMessageAdapter {
         Self {
             rx,
             send_fn: Box::new(send_fn),
+        }
+    }
+
+    pub fn try_next(&mut self) -> Result<Option<WsMessage>, mpsc::error::TryRecvError> {
+        match self.rx.try_recv() {
+            Ok(msg) => Ok(Some(msg)),
+            Err(mpsc::error::TryRecvError::Empty) => Err(mpsc::error::TryRecvError::Empty),
+            Err(mpsc::error::TryRecvError::Disconnected) => Ok(None),
         }
     }
 }
@@ -198,98 +207,157 @@ impl WebviewActor {
 
     pub async fn run(mut self) {
         loop {
-            if self.handle_async().await {
+            if self.step_async().await {
                 break;
             }
         }
         log::info!("WebviewActor: exiting");
     }
 
-    pub async fn handle_async(&mut self) -> bool {
+    pub async fn handle_mailbox_message(&mut self, msg: WebviewActorRequest) {
+        log::trace!("WebviewActor: received message from mailbox: {msg:?}");
+        match msg {
+            WebviewActorRequest::SrcToDocJump(jump_info) => {
+                let msg = positions_req("jump", jump_info);
+                self.webview_websocket_conn
+                    .lock()
+                    .await
+                    .send(WsMessage::Binary(msg.into()))
+                    .await
+                    .log_error("WebViewActor");
+            }
+            WebviewActorRequest::ViewportPosition(jump_info) => {
+                let msg = position_req("viewport", jump_info);
+                self.webview_websocket_conn
+                    .lock()
+                    .await
+                    .send(WsMessage::Binary(msg.into()))
+                    .await
+                    .log_error("WebViewActor");
+            }
+            WebviewActorRequest::CursorPaths(jump_info) => {
+                let json = serde_json::to_string(&jump_info).unwrap();
+                let msg = format!("cursor-paths,{json}");
+                self.webview_websocket_conn
+                    .lock()
+                    .await
+                    .send(WsMessage::Binary(msg.into()))
+                    .await
+                    .log_error("WebViewActor");
+            }
+        }
+    }
+
+    pub async fn handle_svg_receiver_message(&mut self, svg: Vec<u8>) {
+        let _scope = typst_timing::TimingScope::new("webview_actor_send_svg");
+        self.webview_websocket_conn
+            .lock()
+            .await
+            .send(WsMessage::Binary(svg.into()))
+            .await
+            .log_error("WebViewActor");
+    }
+
+    pub async fn handle_websocket_message(&mut self, msg: Result<WsMessage, Error>) -> bool {
+        log::trace!("WebviewActor: received message from websocket: {msg:?}");
+        let Ok(msg) = msg else {
+            // only for system
+            log::info!(
+                "WebviewActor: no more messages from websocket: {}",
+                msg.unwrap_err()
+            );
+            return true;
+        };
+        let WsMessage::Text(msg) = msg else {
+            log::info!("WebviewActor: received non-text message from websocket: {msg:?}");
+            let _ = self
+                .webview_websocket_conn
+                .lock()
+                .await
+                .send(WsMessage::Text(format!(
+                    "Webview Actor: error, received non-text message: {msg:?}"
+                )))
+                .await;
+            return true;
+        };
+        if msg == "current" {
+            log::debug!("Webview Actor: received current, requesting RenderFullLatest");
+            self.render_sender
+                .send(RenderActorRequest::RenderFullLatest)
+                .log_error("WebViewActor");
+        } else if msg.starts_with("srclocation") {
+            let location = msg.split(' ').nth(1).unwrap();
+            self.editor_sender
+                .send(EditorActorRequest::DocToSrcJumpResolve(
+                    DocToSrcJumpResolveRequest {
+                        span: location.trim().to_owned(),
+                    },
+                ))
+                .log_error("WebViewActor");
+        } else if msg.starts_with("outline-sync") {
+            let location = msg.split(',').nth(1).unwrap();
+            let location = location.split(' ').collect::<Vec<&str>>();
+            let page_no = location[0].parse().unwrap();
+            let x = location.get(1).map(|s| s.parse().unwrap()).unwrap_or(0.);
+            let y = location.get(2).map(|s| s.parse().unwrap()).unwrap_or(0.);
+            let pos = DocumentPosition { page_no, x, y };
+
+            self.broadcast_sender
+                .send(WebviewActorRequest::ViewportPosition(pos))
+                .log_error("WebViewActor");
+        } else if msg.starts_with("srcpath") {
+            let path = msg.split(' ').nth(1).unwrap();
+            let path = serde_json::from_str(path);
+            if let Ok(path) = path {
+                let path: Vec<(u32, u32, String)> = path;
+                let path = path.into_iter().map(ElementPoint::from).collect::<Vec<_>>();
+                self.render_sender
+                    .send(RenderActorRequest::WebviewResolveSpan(ResolveSpanRequest(
+                        path,
+                    )))
+                    .log_error("WebViewActor");
+            };
+        } else if msg.starts_with("src-point") {
+            let path = msg.split(' ').nth(1).unwrap();
+            let path = serde_json::from_str(path);
+            if let Ok(path) = path {
+                self.render_sender
+                    .send(RenderActorRequest::WebviewResolveFrameLoc(path))
+                    .log_error("WebViewActor");
+            };
+        } else {
+            let err = self
+                .webview_websocket_conn
+                .lock()
+                .await
+                .send(WsMessage::Text(format!(
+                    "error, received unknown message: {msg}"
+                )))
+                .await;
+            log::info!("WebviewActor: received unknown message from websocket: {msg} {err:?}");
+            return true;
+        }
+        false
+    }
+
+    pub async fn step_async(&mut self) -> bool {
         tokio::select! {
-            Ok(msg) = self.mailbox.recv() => {
+            Ok(msg) = self.mailbox.recv() =>{
                 log::trace!("WebviewActor: received message from mailbox: {msg:?}");
-                match msg {
-                    WebviewActorRequest::SrcToDocJump(jump_info) => {
-                        let msg = positions_req("jump", jump_info);
-                        self.webview_websocket_conn.send(WsMessage::Binary(msg.into()))
-                          .await.log_error("WebViewActor");
-                    }
-                    WebviewActorRequest::ViewportPosition(jump_info) => {
-                        let msg = position_req("viewport", jump_info);
-                        self.webview_websocket_conn.send(WsMessage::Binary(msg.into()))
-                          .await.log_error("WebViewActor");
-                    }
-                    WebviewActorRequest::CursorPaths(jump_info) => {
-                        let json = serde_json::to_string(&jump_info).unwrap();
-                        let msg = format!("cursor-paths,{json}");
-                        self.webview_websocket_conn.send(WsMessage::Binary(msg.into()))
-                          .await.log_error("WebViewActor");
-                    }
-                }
+                self.handle_mailbox_message(msg).await;
                 false
             }
             Some(svg) = self.svg_receiver.recv() => {
                 log::trace!("WebviewActor: received svg from renderer");
-                let _scope = typst_timing::TimingScope::new("webview_actor_send_svg");
-                self.webview_websocket_conn.send(WsMessage::Binary(svg.into()))
-                .await.log_error("WebViewActor");
+                self.handle_svg_receiver_message(svg).await;
                 false
             }
             websocket_result = async {
                 let mut conn = self.webview_websocket_conn.lock().await;
                 conn.next().await
-            } => {
+            } =>{
                 if let Some(msg) = websocket_result {
-                    log::trace!("WebviewActor: received message from websocket: {msg:?}");
-                    let Ok(msg) = msg else {
-                        log::info!("WebviewActor: no more messages from websocket: {}", msg.unwrap_err());
-                        return true;
-                    };
-                    let WsMessage::Text(msg) = msg else {
-                        log::info!("WebviewActor: received non-text message from websocket: {msg:?}");
-                        let _ = self.webview_websocket_conn.lock().await.send(WsMessage::Text(format!("Webview Actor: error, received non-text message: {msg:?}")))
-                        .await;
-                        return true;
-                    };
-                    if msg == "current" {
-                        self.render_sender.send(RenderActorRequest::RenderFullLatest).log_error("WebViewActor");
-                    } else if msg.starts_with("srclocation") {
-                        let location = msg.split(' ').nth(1).unwrap();
-                        self.editor_sender.send(EditorActorRequest::DocToSrcJumpResolve(
-                            DocToSrcJumpResolveRequest {
-                                span: location.trim().to_owned(),
-                            },
-                        )).log_error("WebViewActor");
-                    } else if msg.starts_with("outline-sync") {
-                        let location = msg.split(',').nth(1).unwrap();
-                        let location = location.split(' ').collect::<Vec::<&str>>();
-                        let page_no = location[0].parse().unwrap();
-                        let x = location.get(1).map(|s| s.parse().unwrap()).unwrap_or(0.);
-                        let y = location.get(2).map(|s| s.parse().unwrap()).unwrap_or(0.);
-                        let pos = DocumentPosition { page_no, x, y };
-
-                        self.broadcast_sender.send(WebviewActorRequest::ViewportPosition(pos)).log_error("WebViewActor");
-                    } else if msg.starts_with("srcpath") {
-                        let path = msg.split(' ').nth(1).unwrap();
-                        let path = serde_json::from_str(path);
-                        if let Ok(path) = path {
-                            let path: Vec<(u32, u32, String)> = path;
-                            let path = path.into_iter().map(ElementPoint::from).collect::<Vec<_>>();
-                            self.render_sender.send(RenderActorRequest::WebviewResolveSpan(ResolveSpanRequest(path))).log_error("WebViewActor");
-                        };
-                    } else if msg.starts_with("src-point") {
-                        let path = msg.split(' ').nth(1).unwrap();
-                        let path = serde_json::from_str(path);
-                        if let Ok(path) = path {
-                            self.render_sender.send(RenderActorRequest::WebviewResolveFrameLoc(path)).log_error("WebViewActor");
-                        };
-                    } else {
-                        let err = self.webview_websocket_conn.lock().await.send(WsMessage::Text(format!("error, received unknown message: {msg}"))).await;
-                        log::info!("WebviewActor: received unknown message from websocket: {msg} {err:?}");
-                        return true;
-                    }
-                    false
+                    self.handle_websocket_message(msg).await
                 } else {
                     true
                 }
@@ -300,7 +368,45 @@ impl WebviewActor {
         }
     }
 
-    pub fn handle(&mut self) -> bool {
-        futures::executor::block_on(self.handle_async())
+    async fn step_sync_inner(&mut self) -> bool {
+        while let Ok(msg) = self.mailbox.try_recv() {
+            log::trace!("WebviewActor: received message from mailbox: {msg:?}");
+            self.handle_mailbox_message(msg).await;
+        }
+        while let Ok(svg) = self.svg_receiver.try_recv() {
+            log::trace!("WebviewActor: received svg from renderer");
+            self.handle_svg_receiver_message(svg).await;
+        }
+        let mut websocket_messages = Vec::new();
+        {
+            let mut conn = self.webview_websocket_conn.lock().await;
+            loop {
+                match conn.try_next() {
+                    Ok(Some(msg)) => {
+                        websocket_messages.push(Ok(msg));
+                    }
+                    Ok(None) => {
+                        drop(conn);
+                        return true; // conn closed
+                    }
+                    Err(_) => {
+                        break; // empty
+                    }
+                }
+            }
+            drop(conn);
+        }
+        for msg in websocket_messages {
+            let should_exit = self.handle_websocket_message(msg).await;
+            if should_exit {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    pub fn step(&mut self) -> bool {
+        futures::executor::block_on(self.step_sync_inner())
     }
 }
