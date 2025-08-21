@@ -211,7 +211,43 @@ impl ServerState {
         &mut self,
         params: PreviewNotificationParams,
     ) -> LspResult<()> {
-        Ok(())
+        #[cfg(feature = "web")]
+        {
+            let content = params.content;
+            self.schedule_async();
+
+            if let Some(tx) = &self.preview_message_tx {
+                if tx.is_closed() {
+                    log::warn!("Preview server channel is closed, skipping handle");
+                    return Ok(());
+                }
+                use tinymist_preview::{PreviewMessageWsMessageTransition, WsMessage};
+
+                let ws_message = match content {
+                    PreviewMessageContent::Text { data } => WsMessage::Text(data),
+                    PreviewMessageContent::Binary { data } => {
+                        use base64::{engine::general_purpose, Engine};
+
+                        let bytes = general_purpose::STANDARD.decode(data).unwrap_or_default();
+                        WsMessage::Binary(bytes)
+                    }
+                };
+                match tx.send(ws_message) {
+                    Ok(_) => return Ok(()),
+                    Err(err) => {
+                        log::error!("Failed to send message: {}", err);
+                        return Ok(());
+                    }
+                }
+            }
+            Ok(())
+        }
+
+        #[cfg(not(feature = "web"))]
+        {
+            let _ = params;
+            Ok(())
+        }
     }
 
     fn workspace_configuration_callback(this: &mut ServerState, resp: sync_ls::lsp::Response) {

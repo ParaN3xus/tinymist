@@ -25,6 +25,7 @@ serde_json.workspace = true
 serde.workspace = true
 tokio.workspace = true
 typst.workspace = true
+sync-ls.workspace = true
 tinymist-assets.workspace = true
 tinymist-std.workspace = true
 typst-macros.workspace = true
@@ -35,12 +36,14 @@ wasmtimer = { version = "0.4.2", optional = true }
 
 clap = { workspace = true, optional = true }
 wasm-bindgen-futures.workspace = true
+async-trait.workspace = true
+base64.workspace = true
 
 [features]
 
-default = [ "no-content-hint", "web" ]
+default = ["no-content-hint", "web"]
 
-web = [ "wasmtimer" ]
+web = ["wasmtimer"]
 system = []
 
 # Disable the default content hint.

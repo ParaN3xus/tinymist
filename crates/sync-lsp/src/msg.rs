@@ -4,6 +4,7 @@ use std::fmt;
 #[cfg(any(feature = "lsp", feature = "dap"))]
 use std::io::{self, BufRead, Write};
 
+use lsp_types::notification::Notification;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "dap")]
@@ -262,3 +263,29 @@ macro_rules! invalid_data_fmt {
 }
 #[cfg(any(feature = "lsp", feature = "dap"))]
 pub(crate) use invalid_data_fmt;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewNotificationParams {
+    /// The message content (text or binary data as base64)
+    pub content: PreviewMessageContent,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "format")]
+pub enum PreviewMessageContent {
+    /// Text message
+    #[serde(rename = "text")]
+    Text { data: String },
+    /// Binary message (encoded as base64)
+    #[serde(rename = "binary")]
+    Binary { data: String },
+}
+
+/// Typst Preview Notification
+#[derive(Debug)]
+pub enum PreviewNotification {}
+impl Notification for PreviewNotification {
+    type Params = PreviewNotificationParams;
+    const METHOD: &'static str = "typst-preview";
+}

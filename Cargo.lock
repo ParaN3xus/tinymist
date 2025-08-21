@@ -4853,6 +4853,8 @@ dependencies = [
 name = "tinymist-preview"
 version = "0.14.2"
 dependencies = [
+ "async-trait",
+ "base64",
  "bytes",
  "clap",
  "comemo",
@@ -4865,6 +4867,7 @@ dependencies = [
  "reflexo-vec2svg",
  "serde",
  "serde_json",
+ "sync-ls",
  "tinymist-assets 0.14.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "tinymist-std",
  "tokio",

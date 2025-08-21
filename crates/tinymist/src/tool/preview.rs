@@ -4,6 +4,8 @@ pub use compile::{PreviewCompileView, ProjectPreviewHandler};
 use futures::future::MaybeDone;
 #[cfg(all(feature = "system", feature = "preview"))]
 pub use http::{make_http_server, HttpServer};
+#[cfg(feature = "web")]
+use tinymist_preview::LspMessageAdapter;
 use tokio::runtime::Handle;
 
 mod compile;
@@ -376,7 +378,7 @@ pub struct PreviewState {
     /// Whether to send show document requests with customized notification.
     pub customized_show_document: bool,
     /// The preview actor state
-    preview_actor: Option<PreviewActor>,
+    pub preview_actor: Option<PreviewActor>,
 }
 
 impl PreviewState {
@@ -462,10 +464,7 @@ impl PreviewState {
             mut shutdown_rx,
         } = lsp_rx;
 
-        #[cfg(feature = "system")]
-        let (websocket_tx, websocket_rx) = mpsc::unbounded_channel();
-        #[cfg(feature = "web")]
-        let (lsp_message_tx, lsp_message_rx) = mpsc::unbounded_channel();
+        let (adapter_tx, adapter_rx) = mpsc::unbounded_channel();
 
         let previewer = previewer.build(lsp_tx, compile_handler.clone());
 
@@ -515,13 +514,17 @@ impl PreviewState {
         });
 
         let preview_tx = self.preview_tx.clone();
+        #[cfg(feature = "web")]
+        let client_for_bind = self.client.clone();
+        #[cfg(feature = "web")]
+        let (lsp_message_tx, lsp_message_rx) = mpsc::unbounded_channel();
         (
             just_future(async move {
                 let mut previewer = previewer.await;
-                #[cfg(feature = "system")]
-                bind_streams(&mut previewer, websocket_rx);
+                #[cfg(not(feature = "web"))]
+                bind_streams(&mut previewer, adapter_rx);
                 #[cfg(feature = "web")]
-                bind_lsp_channel(&mut previewer, lsp_message_rx);
+                bind_lsp_channel(&mut previewer, adapter_rx);
 
                 // Put a fence to ensure the previewer can receive the first compilation.
                 // The fence must be put after the previewer is initialized.
@@ -531,13 +534,26 @@ impl PreviewState {
                 let frontend_html =
                     frontend_html(TYPST_PREVIEW_HTML, args.preview.preview_mode, "/");
 
-                #[cfg(feature = "system")]
+                #[cfg(not(feature = "web"))]
                 let (srv, addr) = {
                     let srv =
-                        make_http_server(frontend_html, args.data_plane_host, websocket_tx).await;
+                        make_http_server(frontend_html, args.data_plane_host, adapter_tx).await;
                     let addr = srv.addr;
                     log::info!("PreviewTask({task_id}): preview server listening on: {addr}");
                     (srv, addr)
+                };
+
+                #[cfg(feature = "web")]
+                {
+                    use tinymist_preview::LspMessageAdapter;
+                    adapter_tx
+                        .send(LspMessageAdapter::new(
+                            lsp_message_rx,
+                            move |params: &PreviewNotificationParams| {
+                                client_for_bind.send_notification::<PreviewNotification>(params)
+                            },
+                        ))
+                        .ok();
                 };
 
                 let resp = StartPreviewResponse {
@@ -579,7 +595,6 @@ impl PreviewState {
     /// run the server in passive context, for example, in the web
     /// environment where the server is run in background.
     pub(crate) fn schedule_async(&mut self) {
-        // TODO: use this
         if let Some(preview_actor) = self.preview_actor.as_mut() {
             preview_actor.step();
         }
@@ -700,7 +715,7 @@ fn send_show_document(client: &TypedLspClient<PreviewState>, s: &DocToSrcJumpInf
     );
 }
 
-#[cfg(all(feature = "system", feature = "preview"))]
+#[cfg(all(not(feature = "web"), feature = "preview"))]
 /// Bind the hyper websocket streams to the previewer.
 pub fn bind_streams(
     previewer: &mut Previewer,
@@ -735,55 +750,9 @@ pub fn bind_streams(
 }
 
 #[cfg(feature = "web")]
-pub struct LspMessageAdapter {
-    rx: mpsc::UnboundedReceiver<WsMessage>,
-}
-
-#[cfg(feature = "web")]
-impl futures::Sink<WsMessage> for LspMessageAdapter {
-    type Error = reflexo_typst::Error;
-
-    fn poll_ready(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn start_send(self: Pin<&mut Self>, _item: WsMessage) -> Result<(), Self::Error> {
-        // 暂时忽略发送，后续步骤会处理
-        Ok(())
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-}
-
-#[cfg(feature = "web")]
-impl futures::Stream for LspMessageAdapter {
-    type Item = Result<WsMessage, reflexo_typst::Error>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match self.rx.poll_recv(cx) {
-            Poll::Ready(Some(msg)) => Poll::Ready(Some(Ok(msg))),
-            Poll::Ready(None) => Poll::Ready(None),
-            Poll::Pending => Poll::Pending,
-        }
-    }
-}
-
-#[cfg(feature = "web")]
 pub fn bind_lsp_channel(
     previewer: &mut Previewer,
-    lsp_message_rx: mpsc::UnboundedReceiver<WsMessage>,
+    adapter_rx: mpsc::UnboundedReceiver<LspMessageAdapter>,
 ) {
-    let (adapter_tx, adapter_rx) = mpsc::unbounded_channel();
-
-    adapter_tx
-        .send(async move { LspMessageAdapter { rx: lsp_message_rx } })
-        .ok();
-
-    previewer.start_data_plane(adapter_rx, |adapter: LspMessageAdapter| Ok(adapter));
+    previewer.start_data_plane(adapter_rx, |adapter: LspMessageAdapter| Ok(adapter.into()));
 }
