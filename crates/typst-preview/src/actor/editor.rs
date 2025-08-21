@@ -9,6 +9,7 @@ use tokio::sync::mpsc;
 use crate::actor::render::RenderActorRequest;
 use crate::debug_loc::{InternQuery, SpanInterner};
 use crate::outline::Outline;
+use crate::EditorServerDyn;
 use crate::{
     ChangeCursorPositionRequest, DocToSrcJumpInfo, EditorServer, MemoryFiles, MemoryFilesShort,
     ResolveSourceLocRequest,
@@ -105,8 +106,8 @@ impl ControlPlaneTx {
     }
 }
 
-pub struct EditorActor<T> {
-    server: Arc<T>,
+pub struct EditorActor {
+    server: Arc<dyn EditorServerDyn>,
     mailbox: mpsc::UnboundedReceiver<EditorActorRequest>,
     editor_conn: ControlPlaneTx,
 
@@ -148,9 +149,9 @@ pub enum ControlPlaneResponse {
     Outline(Outline),
 }
 
-impl<T: EditorServer> EditorActor<T> {
+impl EditorActor {
     pub fn new(
-        server: Arc<T>,
+        server: Arc<dyn EditorServerDyn>,
         mailbox: mpsc::UnboundedReceiver<EditorActorRequest>,
         editor_websocket_conn: ControlPlaneTx,
         renderer_sender: broadcast::Sender<RenderActorRequest>,
