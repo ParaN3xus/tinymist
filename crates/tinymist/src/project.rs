@@ -89,6 +89,23 @@ impl ServerState {
         self.preview.stop_all();
         let editor_tx = self.editor_tx.clone();
 
+        #[cfg(not(feature = "system"))]
+        let new_project =
+            if let TransportHost::Js { sender, .. } = self.client.clone().to_untyped().sender {
+                Self::project(
+                    &self.config,
+                    editor_tx,
+                    self.client.clone(),
+                    #[cfg(feature = "preview")]
+                    self.preview.watchers.clone(),
+                    sender.resolve_fn,
+                    sender.extra_fonts,
+                )
+            } else {
+                panic!("Expected Js TransportHost")
+            };
+
+        #[cfg(feature = "system")]
         let new_project = Self::project(
             &self.config,
             editor_tx,
@@ -148,6 +165,7 @@ impl ServerState {
         dep_tx: mpsc::UnboundedSender<NotifyMessage>,
         #[cfg(feature = "preview")] preview: ProjectPreviewState,
         #[cfg(all(not(feature = "system"), feature = "web"))] resolve_fn: js_sys::Function,
+        #[cfg(all(not(feature = "system"), feature = "web"))] extra_fonts: js_sys::Array,
     ) -> ProjectState {
         let const_config = &config.const_config;
 
@@ -208,7 +226,8 @@ impl ServerState {
 
         log::info!("ServerState: creating ProjectState, entry: {entry:?}, inputs: {inputs:?}");
 
-        let fonts = config.fonts();
+        #[cfg(feature = "web")]
+        let fonts = config.fonts(extra_fonts);
 
         #[cfg(all(not(feature = "system"), feature = "web"))]
         let packages =

@@ -642,6 +642,7 @@ impl Config {
         CompilePackageArgs::default()
     }
 
+    #[cfg(not(feature = "web"))]
     /// Determines the font resolver.
     pub fn fonts(&self) -> Arc<FontResolverImpl> {
         // todo: on font resolving failure, downgrade to a fake font book
@@ -651,6 +652,23 @@ impl Config {
             log::info!("creating SharedFontResolver with {opts:?}");
             Derived(
                 crate::project::LspUniverseBuilder::resolve_fonts(opts)
+                    .map(Arc::new)
+                    .expect("failed to create font book"),
+            )
+        };
+        self.fonts.get_or_init(font).clone().0
+    }
+
+    #[cfg(feature = "web")]
+    /// Determines the font resolver.
+    pub fn fonts(&self, extra_fonts: js_sys::Array) -> Arc<FontResolverImpl> {
+        // todo: on font resolving failure, downgrade to a fake font book
+        let font = || {
+            let opts = self.font_opts();
+
+            log::info!("creating SharedFontResolver with {opts:?}");
+            Derived(
+                crate::project::LspUniverseBuilder::resolve_fonts(opts, extra_fonts)
                     .map(Arc::new)
                     .expect("failed to create font book"),
             )

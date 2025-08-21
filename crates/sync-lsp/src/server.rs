@@ -279,6 +279,9 @@ pub struct JsTransportSender {
     /// The acutal resolving function in JavaScript
     #[serde(with = "serde_wasm_bindgen::preserve")]
     pub resolve_fn: js_sys::Function,
+    /// Extra fonts Uint8Array
+    #[serde(with = "serde_wasm_bindgen::preserve")]
+    pub extra_fonts: js_sys::Array,
 }
 
 #[cfg(feature = "web")]
