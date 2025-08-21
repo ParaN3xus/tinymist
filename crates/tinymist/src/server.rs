@@ -142,6 +142,22 @@ impl ServerState {
         #[cfg(feature = "preview")]
         let watchers = crate::project::ProjectPreviewState::default();
 
+        #[cfg(not(feature = "system"))]
+        let handle = if let TransportHost::Js { sender, .. } = client.clone().to_untyped().sender {
+            Self::project(
+                &config,
+                editor_tx.clone(),
+                client.clone(),
+                #[cfg(feature = "preview")]
+                watchers.clone(),
+                sender.resolve_fn,
+                sender.extra_fonts,
+            )
+        } else {
+            panic!("Expected Js TransportHost")
+        };
+
+        #[cfg(feature = "system")]
         let handle = Self::project(
             &config,
             editor_tx.clone(),
@@ -290,7 +306,7 @@ impl ServerState {
             .with_resource("/dir/package/local", State::resource_local_package_dir);
 
         // todo: .on_sync_mut::<notifs::Cancel>(handlers::handle_cancel)?
-        let mut provider = provider
+        let provider = provider
             .with_request::<Shutdown>(State::shutdown)
             // customized event
             .with_event(
