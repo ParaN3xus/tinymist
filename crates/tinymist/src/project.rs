@@ -103,6 +103,7 @@ impl ServerState {
                     #[cfg(feature = "preview")]
                     self.preview.watchers.clone(),
                     sender.resolve_fn,
+                    sender.extra_fonts,
                 )
             } else {
                 panic!("Expected Js TransportHost")
@@ -159,7 +160,8 @@ impl ServerState {
         client: TypedLspClient<ServerState>,
         dep_tx: mpsc::UnboundedSender<NotifyMessage>,
         #[cfg(feature = "preview")] preview: ProjectPreviewState,
-        #[cfg(not(feature = "system"))] resolve_fn: js_sys::Function,
+        #[cfg(feature = "web")] resolve_fn: js_sys::Function,
+        #[cfg(feature = "web")] extra_fonts: js_sys::Array,
     ) -> ProjectState {
         let const_config = &config.const_config;
 
@@ -219,7 +221,8 @@ impl ServerState {
 
         log::info!("ServerState: creating ProjectState, entry: {entry:?}, inputs: {inputs:?}");
 
-        let fonts = config.fonts();
+        #[cfg(feature = "web")]
+        let fonts = config.fonts(extra_fonts);
 
         #[cfg(not(feature = "system"))]
         let packages =

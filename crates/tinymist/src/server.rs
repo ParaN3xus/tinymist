@@ -151,6 +151,7 @@ impl ServerState {
                 #[cfg(feature = "preview")]
                 watchers.clone(),
                 sender.resolve_fn,
+                sender.extra_fonts,
             )
         } else {
             panic!("Expected Js TransportHost")
@@ -299,7 +300,7 @@ impl ServerState {
             .with_resource("/dir/package/local", State::resource_local_package_dir);
 
         // todo: .on_sync_mut::<notifs::Cancel>(handlers::handle_cancel)?
-        let mut provider = provider
+        let provider = provider
             .with_request::<Shutdown>(State::shutdown)
             // customized event
             .with_event(

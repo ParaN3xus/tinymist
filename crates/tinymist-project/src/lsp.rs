@@ -271,7 +271,7 @@ impl LspUniverseBuilder {
     }
 
     /// Resolve fonts from given options.
-    #[cfg(feature = "system")]
+    #[cfg(not(feature = "web"))]
     pub fn resolve_fonts(args: CompileFontArgs) -> Result<FontResolverImpl> {
         let mut searcher = tinymist_world::font::system::SystemFontSearcher::new();
         searcher.resolve_opts(tinymist_world::config::CompileFontOpts {
@@ -285,8 +285,13 @@ impl LspUniverseBuilder {
     }
 
     /// Resolve fonts from given options.
-    #[cfg(all(not(feature = "system"), feature = "web"))]
-    pub fn resolve_fonts(args: CompileFontArgs) -> Result<FontResolverImpl> {
+    #[cfg(feature = "web")]
+    pub fn resolve_fonts(
+        args: CompileFontArgs,
+        extra_fonts: js_sys::Array,
+    ) -> Result<FontResolverImpl> {
+        use rayon::iter::IntoParallelIterator;
+
         let mut searcher = tinymist_world::font::web::BrowserFontSearcher::new();
         searcher.resolve_opts(tinymist_world::config::CompileFontOpts {
             font_paths: args.font_paths,
@@ -295,6 +300,18 @@ impl LspUniverseBuilder {
                 .map(std::borrow::Cow::Borrowed)
                 .collect(),
         })?;
+        let vec: Vec<Bytes> = (0..extra_fonts.length())
+            .map(|i| {
+                use js_sys::Uint8Array;
+                use wasm_bindgen::JsCast;
+
+                let value = extra_fonts.get(i);
+                let uint8_array = value.dyn_into::<Uint8Array>().expect("Expected Uint8Array");
+                let vec = uint8_array.to_vec();
+                Bytes::new(vec)
+            })
+            .collect();
+        searcher.add_memory_fonts(vec.into_par_iter());
         Ok(searcher.build())
     }
 
