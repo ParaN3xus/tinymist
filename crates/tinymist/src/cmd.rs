@@ -201,7 +201,10 @@ impl ServerState {
         let task_id = get_arg!(args[0] as String);
         let req = get_arg!(args[1] as ControlPlaneMessage);
 
-        self.preview.scroll(task_id, req)
+        let res = self.preview.scroll(task_id, req);
+        self.schedule_async();
+
+        res
     }
 
     /// Initialize a new template.
