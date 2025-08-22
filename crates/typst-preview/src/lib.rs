@@ -113,6 +113,10 @@ impl Previewer {
     }
 
     pub fn schedule_async(&mut self) {
+        if let Some(editor_actor) = self.editor_actor.as_mut() {
+            editor_actor.step();
+        }
+
         if let Some(ref mut webview_actor) = *self.webview_actor.lock().unwrap() {
             webview_actor.step();
         }
@@ -126,6 +130,7 @@ impl Previewer {
         if let Some(editor_actor) = self.editor_actor.as_mut() {
             editor_actor.step();
         }
+
         if let Some(ref mut outline_render) = *self.outline_render_actor.lock().unwrap() {
             outline_render.step();
         }
