@@ -19,9 +19,9 @@
     "pkg/tinymist.d.ts"
   ],
   "scripts": {
-    "build:dev": "wasm-pack build --target web --dev -- --no-default-features --features web,no-content-hint",
-    "build:node": "wasm-pack build --target nodejs -- --no-default-features --features web,no-content-hint",
-    "build": "wasm-pack build --target web -- --no-default-features --features web,no-content-hint",
+    "build:dev": "wasm-pack build --target web --dev -- --no-default-features --features web,preview,no-content-hint",
+    "build:node": "wasm-pack build --target nodejs -- --no-default-features --features web,preview,no-content-hint",
+    "build": "wasm-pack build --target web -- --no-default-features --features web,preview,no-content-hint",
     "watch": "cargo watch -i .gitignore -i \"pkg/*\" -s \"yarn build\"",
     "publish:dry": "npm publish --dry-run",
     "publish:lib": "npm publish || exit 0",
