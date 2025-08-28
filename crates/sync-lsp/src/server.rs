@@ -700,7 +700,7 @@ impl<A, S> ServiceState<'_, A, S> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum State<Args, S> {
+pub enum State<Args, S> {
     Uninitialized(Option<Box<Args>>),
     Initializing(S),
     Ready(S),
@@ -726,7 +726,7 @@ impl<Args, S> State<Args, S> {
 /// The language server driver.
 pub struct LsDriver<M, Args: Initializer> {
     /// State to synchronize with the client.
-    state: State<Args, Args::S>,
+    pub state: State<Args, Args::S>,
     /// The language server client.
     pub client: LspClient,
 
