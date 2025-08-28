@@ -5,7 +5,7 @@ use std::sync::LazyLock;
 use futures::future::MaybeDone;
 use sync_ls::{
     internal_error, invalid_params, JsTransportSender, LsDriver, LspBuilder, LspClientRoot,
-    LspMessage, ResponseError,
+    LspMessage, ResponseError, State,
 };
 use tinymist_project::CompileFontArgs;
 use wasm_bindgen::prelude::*;
@@ -56,6 +56,13 @@ impl TinymistLanguageServer {
         .build();
 
         Ok(Self { _client, state })
+    }
+
+    pub fn schedule_async(&mut self) {
+        match &mut self.state.state {
+            State::Ready(state) => state.schedule_async(),
+            _ => {}
+        }
     }
 
     /// Handles internal events.
