@@ -96,6 +96,7 @@ impl ServerState {
                     &self.config,
                     editor_tx,
                     self.client.clone(),
+                    self.dep_tx.clone(),
                     #[cfg(feature = "preview")]
                     self.preview.watchers.clone(),
                     sender.resolve_fn,

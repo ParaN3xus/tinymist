@@ -148,6 +148,7 @@ impl ServerState {
                 &config,
                 editor_tx.clone(),
                 client.clone(),
+                dep_tx.clone(),
                 #[cfg(feature = "preview")]
                 watchers.clone(),
                 sender.resolve_fn,
@@ -174,8 +175,6 @@ impl ServerState {
         );
 
         Self {
-            #[cfg(all(feature = "web", feature = "preview"))]
-            preview_message_tx: None,
             #[cfg(feature = "dap")]
             debug: crate::dap::DebugState::default(),
             #[cfg(feature = "lock")]
