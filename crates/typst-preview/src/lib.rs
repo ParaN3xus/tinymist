@@ -16,14 +16,9 @@ use crate::actor::webview::WebviewActor;
 pub use crate::actor::webview::{LspMessageAdapter, PreviewMessageWsMessageTransition};
 pub use crate::outline::Outline;
 
-#[cfg(feature = "web")]
-use std::cell::RefCell;
-#[cfg(feature = "web")]
-use std::rc::Rc;
 use std::sync::{Arc, OnceLock};
 use std::{collections::HashMap, future::Future, path::PathBuf, pin::Pin};
 
-use futures::StreamExt;
 use futures::lock::Mutex;
 use futures::sink::SinkExt;
 use reflexo_typst::Error;
@@ -230,7 +225,7 @@ impl Previewer {
             })
         };
 
-        let data_plane_handle = spawn_cpu(async move {
+        spawn_cpu(async move {
             let mut alive_cnt = 0;
             #[cfg(not(feature = "web"))]
             let mut shutdown_bell = tokio::time::interval(idle_timeout);
@@ -246,9 +241,11 @@ impl Previewer {
                         return;
                     }
                     Some(stream) = streams.recv() => {
-                        alive_cnt += 1;
                         #[cfg(not(feature = "web"))]
-                        tokio::spawn(recv(stream));
+                        {
+                            alive_cnt += 1;
+                            tokio::spawn(recv(stream));
+                        }
                         #[cfg(feature = "web")]
                         {
                             recv(stream);
@@ -270,15 +267,6 @@ impl Previewer {
                 }
             }
         });
-
-        #[cfg(feature = "web")]
-        {
-            self.data_plane_handle = None;
-        }
-        #[cfg(not(feature = "web"))]
-        {
-            self.data_plane_handle = Some(data_plane_handle);
-        }
     }
 }
 

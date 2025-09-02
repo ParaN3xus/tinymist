@@ -6,7 +6,7 @@ use reflexo_typst::debug_loc::{
 };
 use reflexo_vec2svg::IncrSvgDocServer;
 use tinymist_std::typst::TypstDocument;
-use tokio::sync::broadcast::error::{RecvError, TryRecvError};
+use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{broadcast, mpsc};
 
 use super::{editor::EditorActorRequest, webview::WebviewActorRequest};
@@ -123,6 +123,7 @@ impl RenderActor {
         res
     }
 
+    #[cfg(not(feature = "web"))]
     pub async fn run(mut self) {
         loop {
             let req = self.mailbox.recv().await;
@@ -401,6 +402,7 @@ impl OutlineRenderActor {
         return false;
     }
 
+    #[cfg(not(feature = "web"))]
     pub async fn run(mut self) {
         loop {
             let req = self.signal.recv().await;

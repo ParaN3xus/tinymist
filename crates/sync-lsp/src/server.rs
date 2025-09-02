@@ -713,10 +713,26 @@ impl<A, S> ServiceState<'_, A, S> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Represents the current state of an LSP server during its lifecycle.
+///
+/// The server transitions through these states in the following order:
+/// `Uninitialized` → `Initializing` → `Ready` → `ShuttingDown`
+///
+/// # Type Parameters
+///
+/// * `Args` - The type of initialization arguments
+/// * `S` - The type representing the ServerState
 pub enum State<Args, S> {
+    /// Server has not been initialized yet.
     Uninitialized(Option<Box<Args>>),
+
+    /// Server is currently in the process of initializing.
     Initializing(S),
+
+    /// Server is fully initialized and ready to handle requests.
     Ready(S),
+
+    /// Server is in the process of shutting down.
     ShuttingDown,
 }
 

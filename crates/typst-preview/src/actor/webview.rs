@@ -2,14 +2,13 @@ use std::sync::Arc;
 #[cfg(feature = "web")]
 use std::{pin::Pin, task::Context, task::Poll};
 
-use base64::{engine::general_purpose, Engine};
-use futures::{lock::Mutex, SinkExt, StreamExt};
+use base64::{Engine, engine::general_purpose};
+use futures::{SinkExt, lock::Mutex};
 use reflexo_typst::debug_loc::{DocumentPosition, ElementPoint};
 #[cfg(feature = "web")]
 use sync_ls::{PreviewMessageContent, PreviewNotificationParams};
-use tinymist_std::{error::IgnoreLogging, Error};
+use tinymist_std::{Error, error::IgnoreLogging};
 use tokio::sync::{broadcast, mpsc};
-use typst::syntax::ast::Bool;
 
 use super::{editor::EditorActorRequest, render::RenderActorRequest};
 use crate::{
@@ -205,6 +204,7 @@ impl WebviewActor {
         }
     }
 
+    #[cfg(not(feature = "web"))]
     pub async fn run(mut self) {
         loop {
             if self.step_async().await {
@@ -340,6 +340,7 @@ impl WebviewActor {
         false
     }
 
+    #[cfg(not(feature = "web"))]
     pub async fn step_async(&mut self) -> bool {
         tokio::select! {
             Ok(msg) = self.mailbox.recv() =>{
