@@ -38,12 +38,14 @@ wasm-bindgen-futures.workspace = true
 async-trait.workspace = true
 base64.workspace = true
 
+hyper-tungstenite = { workspace = true, optional = true }
+
 [features]
 
-default = [ "no-content-hint", "web" ]
+default = [ "no-content-hint" ]
 
 web = [ "wasmtimer" ]
-system = []
+system = [ "hyper-tungstenite" ]
 
 # Disable the default content hint.
 # This requires modifying typst.

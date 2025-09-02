@@ -2,6 +2,7 @@ use std::sync::Arc;
 #[cfg(feature = "web")]
 use std::{pin::Pin, task::Context, task::Poll};
 
+#[cfg(feature = "web")]
 use base64::{Engine, engine::general_purpose};
 use futures::{SinkExt, lock::Mutex};
 use reflexo_typst::debug_loc::{DocumentPosition, ElementPoint};
@@ -15,6 +16,14 @@ use crate::{
     WsMessage,
     actor::{editor::DocToSrcJumpResolveRequest, render::ResolveSpanRequest},
 };
+
+#[cfg(not(feature = "web"))]
+use hyper_tungstenite::HyperWebsocketStream;
+
+#[cfg(not(feature = "web"))]
+use futures::StreamExt;
+#[cfg(not(feature = "web"))]
+use futures::TryStreamExt;
 
 // pub type CursorPosition = DocumentPosition;
 pub type SrcToDocJumpInfo = DocumentPosition;
@@ -60,6 +69,7 @@ impl Default for LspMessageAdapter {
     }
 }
 
+#[cfg(feature = "web")]
 impl LspMessageAdapter {
     pub fn new<F>(rx: mpsc::UnboundedReceiver<WsMessage>, send_fn: F) -> Self
     where
@@ -119,6 +129,7 @@ impl futures::Stream for LspMessageAdapter {
     }
 }
 
+#[cfg(feature = "web")]
 impl std::future::Future for LspMessageAdapter {
     type Output = Self;
 
@@ -135,6 +146,7 @@ pub trait PreviewMessageWsMessageTransition {
     fn from_ws_message(msg: WsMessage) -> Self;
 }
 
+#[cfg(feature = "web")]
 impl PreviewMessageWsMessageTransition for PreviewMessageContent {
     /// Convert to WsMessage
     fn to_ws_message(self) -> WsMessage {

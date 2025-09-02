@@ -6,4 +6,16 @@
     "tinymist.fontPaths": [
         "assets/fonts"
     ],
+    "rust-analyzer.cargo.noDefaultFeatures": true,
+    "rust-analyzer.cargo.features": [
+        "system",
+        "preview",
+        "no-content-hint"
+    ],
+    "rust-analyzer.check.noDefaultFeatures": true,
+    "rust-analyzer.check.features": [
+        "system",
+        "preview",
+        "no-content-hint"
+    ],
 }

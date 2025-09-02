@@ -1,0 +1,122 @@
+tinymist-project v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist-project)
+└── reflexo-typst v0.6.1-rc3
+    ├── tinymist-preview v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/typst-preview)
+    │   ├── tinymist-preview feature "default"
+    │   │   ├── tinymist v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist)
+    │   │   │   ├── tinymist-bench-font-load v0.13.24 (/home/paran3xus/projects/rust/tinymist/benches/font-load)
+    │   │   │   └── tinymist-cli v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist-cli)
+    │   │   │       ├── tinymist-cli feature "no-content-hint" (command-line)
+    │   │   │       └── tinymist-cli feature "tinymist-preview"
+    │   │   │           └── tinymist-cli feature "no-content-hint" (command-line)
+    │   │   │   ├── tinymist feature "console_error_panic_hook"
+    │   │   │   │   └── tinymist feature "web" (command-line)
+    │   │   │   ├── tinymist feature "hyper-tungstenite"
+    │   │   │   │   └── tinymist feature "system" (command-line)
+    │   │   │   ├── tinymist feature "js-sys"
+    │   │   │   │   └── tinymist feature "web" (command-line)
+    │   │   │   ├── tinymist feature "lock"
+    │   │   │   │   └── tinymist feature "system" (command-line)
+    │   │   │   ├── tinymist feature "no-content-hint" (command-line)
+    │   │   │   ├── tinymist feature "open"
+    │   │   │   │   └── tinymist feature "system" (command-line)
+    │   │   │   ├── tinymist feature "serde-wasm-bindgen"
+    │   │   │   │   └── tinymist feature "web" (command-line)
+    │   │   │   ├── tinymist feature "system" (command-line)
+    │   │   │   ├── tinymist feature "tinymist-preview"
+    │   │   │   │   ├── tinymist feature "system" (command-line)
+    │   │   │   │   └── tinymist feature "web" (command-line)
+    │   │   │   ├── tinymist feature "wasm-bindgen"
+    │   │   │   │   └── tinymist feature "web" (command-line)
+    │   │   │   ├── tinymist feature "wasm-bindgen-futures"
+    │   │   │   │   └── tinymist feature "web" (command-line)
+    │   │   │   └── tinymist feature "web" (command-line)
+    │   │   └── tinymist-cli v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist-cli) (*)
+    │   ├── tinymist-preview feature "no-content-hint" (command-line)
+    │   │   ├── tinymist-preview feature "default" (*)
+    │   │   └── tinymist-cli feature "no-content-hint" (command-line)
+    │   ├── tinymist-preview feature "system" (command-line)
+    │   │   └── tinymist feature "system" (command-line)
+    │   ├── tinymist-preview feature "wasmtimer"
+    │   │   └── tinymist-preview feature "web" (command-line)
+    │   │       ├── tinymist feature "web" (command-line)
+    │   │       └── tinymist-preview feature "default" (*)
+    │   └── tinymist-preview feature "web" (command-line) (*)
+    └── tinymist-render v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist-render)
+        └── tinymist-render feature "default"
+            ├── tinymist v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist) (*)
+            └── tinymist-cli v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist-cli) (*)
+    ├── reflexo-typst feature "__web"
+    │   ├── reflexo-typst feature "__web_render"
+    │   │   └── reflexo-typst feature "web-render"
+    │   │       ├── reflexo-typst feature "browser-compile"
+    │   │       │   └── reflexo-typst feature "web"
+    │   │       │       └── tinymist feature "web" (command-line)
+    │   │       └── reflexo-typst feature "web" (*)
+    │   └── reflexo-typst feature "browser-compile" (*)
+    ├── reflexo-typst feature "__web_render" (*)
+    ├── reflexo-typst feature "browser-compile" (*)
+    ├── reflexo-typst feature "glyph2vec"
+    │   ├── reflexo-typst feature "browser-compile" (*)
+    │   └── reflexo-typst feature "system-compile"
+    │       └── reflexo-typst feature "system"
+    │           └── tinymist-cli v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist-cli) (*)
+    │           └── tinymist feature "system" (command-line)
+    ├── reflexo-typst feature "no-content-hint"
+    │   ├── tinymist feature "no-content-hint" (command-line)
+    │   ├── tinymist-preview feature "no-content-hint" (command-line) (*)
+    │   └── tinymist-cli feature "no-content-hint" (command-line)
+    ├── reflexo-typst feature "svg"
+    │   ├── tinymist v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist) (*)
+    │   └── tinymist-cli v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist-cli) (*)
+    ├── reflexo-typst feature "system" (*)
+    ├── reflexo-typst feature "system-compile" (*)
+    ├── reflexo-typst feature "system-watch"
+    │   └── reflexo-typst feature "system" (*)
+    ├── reflexo-typst feature "web" (*)
+    └── reflexo-typst feature "web-render" (*)
+├── tinymist-project feature "lsp"
+│   ├── crityp v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/crityp)
+│   │   ├── crityp feature "no-content-hint" (command-line)
+│   │   ├── crityp feature "system" (command-line)
+│   │   └── crityp feature "web" (command-line)
+│   ├── tinymist v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist) (*)
+│   ├── tinymist-cli v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist-cli) (*)
+│   ├── tinymist-lint v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist-lint)
+│   │   └── tinymist-lint feature "default"
+│   │       └── tinymist-query v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist-query)
+│   │           ├── tinymist-query feature "default"
+│   │           │   ├── tinymist v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist) (*)
+│   │           │   ├── tinymist-cli v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist-cli) (*)
+│   │           │   └── tinymist-render v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist-render) (*)
+│   │           └── tinymist-query feature "local-registry"
+│   │               └── tinymist feature "system" (command-line)
+│   ├── tinymist-query v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist-query) (*)
+│   ├── tinymist-tests v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist-tests)
+│   │   └── tinymist-tests feature "default"
+│   │       [dev-dependencies]
+│   │       ├── tinymist-query v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist-query) (*)
+│   │       └── typlite v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/typlite)
+│   │           ├── tinymist v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist) (*)
+│   │           └── tinymist-cli v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist-cli) (*)
+│   │           ├── typlite feature "no-content-hint" (command-line)
+│   │           │   └── tinymist-query v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/tinymist-query) (*)
+│   │           │   └── tinymist-cli feature "no-content-hint" (command-line)
+│   │           ├── typlite feature "system" (command-line)
+│   │           └── typlite feature "web" (command-line)
+│   └── typlite v0.13.24 (/home/paran3xus/projects/rust/tinymist/crates/typlite) (*)
+├── tinymist-project feature "no-content-hint" (command-line)
+│   ├── crityp feature "no-content-hint" (command-line)
+│   ├── typlite feature "no-content-hint" (command-line) (*)
+│   └── tinymist-cli feature "no-content-hint" (command-line)
+├── tinymist-project feature "system" (command-line)
+│   ├── crityp feature "system" (command-line)
+│   ├── tinymist feature "system" (command-line)
+│   ├── reflexo-typst feature "system-watch" (*)
+│   └── typlite feature "system" (command-line)
+├── tinymist-project feature "toml"
+│   ├── tinymist-project feature "lsp" (*)
+│   └── tinymist-project feature "system" (command-line) (*)
+└── tinymist-project feature "web" (command-line)
+    ├── crityp feature "web" (command-line)
+    ├── tinymist feature "web" (command-line)
+    └── typlite feature "web" (command-line)
