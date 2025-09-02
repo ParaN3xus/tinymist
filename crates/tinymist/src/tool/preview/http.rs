@@ -4,12 +4,16 @@
 use std::net::SocketAddr;
 use std::sync::LazyLock;
 
+#[cfg(feature = "web")]
+use futures::SinkExt;
 use hyper::header::HeaderValue;
+use hyper::service::service_fn;
 use hyper_tungstenite::HyperWebsocket;
 use hyper_util::rt::TokioIo;
 use hyper_util::server::graceful::GracefulShutdown;
 use lsp_types::Url;
-use tokio::sync::oneshot;
+use reflexo::error::IgnoreLogging;
+use tokio::sync::{mpsc, oneshot};
 
 /// created by `make_http_server`
 pub struct HttpServer {
