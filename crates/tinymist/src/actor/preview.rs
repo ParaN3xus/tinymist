@@ -59,6 +59,7 @@ impl PreviewActor {
         while let Ok(req) = self.preview_rx.try_recv() {
             self.handle(req);
         }
+        #[cfg(feature = "web")]
         self.tabs.values_mut().for_each(|tab| {
             tab.previewer.schedule_async();
         });
