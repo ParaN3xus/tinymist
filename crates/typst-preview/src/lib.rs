@@ -12,8 +12,13 @@ pub use crate::actor::editor::{
 #[cfg(feature = "web")]
 use crate::actor::render::{OutlineRenderActor, RenderActor};
 #[cfg(feature = "web")]
+pub use crate::actor::webview::LspMessageAdapter;
+pub use crate::actor::webview::PreviewConnectionAdapter;
+pub use crate::actor::webview::PreviewMessageWsMessageTransition;
+pub use crate::actor::webview::WebsocketAdapter;
+#[cfg(feature = "web")]
 use crate::actor::webview::WebviewActor;
-pub use crate::actor::webview::{LspMessageAdapter, PreviewMessageWsMessageTransition};
+
 pub use crate::outline::Outline;
 
 use std::sync::{Arc, OnceLock};
@@ -32,11 +37,12 @@ use tinymist_std::typst::TypstDocument;
 use tokio::sync::{broadcast, mpsc};
 use typst::{layout::Position, syntax::Span};
 
+#[cfg(feature = "web")]
 use std::sync::Mutex as SyncMutex;
 
 use crate::actor::editor::{EditorActor, EditorActorRequest};
 use crate::actor::render::RenderActorRequest;
-use crate::actor::webview::{WebviewActorConnectionAdaptor, WebviewActorRequest};
+use crate::actor::webview::WebviewActorRequest;
 use crate::debug_loc::SpanInterner;
 
 type StopFuture = Pin<Box<dyn Future<Output = ()> + Send + Sync>>;
@@ -110,6 +116,7 @@ impl Previewer {
         }
     }
 
+    #[cfg(feature = "web")]
     pub fn schedule_async(&mut self) {
         if let Some(editor_actor) = self.editor_actor.as_mut() {
             editor_actor.step();
@@ -146,7 +153,7 @@ impl Previewer {
     pub fn start_data_plane<S: 'static, SFut: Future<Output = S> + Send + 'static>(
         &mut self,
         mut streams: mpsc::UnboundedReceiver<SFut>,
-        caster: impl Fn(S) -> Result<Mutex<WebviewActorConnectionAdaptor>, Error>
+        caster: impl Fn(S) -> Result<Mutex<Pin<Box<dyn PreviewConnectionAdapter + Send>>>, Error>
         + Send
         + Sync
         + Copy
@@ -156,9 +163,12 @@ impl Previewer {
         let (conn_handler, shutdown_tx, mut shutdown_data_plane_rx) =
             self.data_plane_resources.take().unwrap();
         let (alive_tx, mut alive_rx) = mpsc::unbounded_channel::<()>();
-        let webview_actor_ref = self.webview_actor.clone();
-        let render_actor_ref = self.render_actor.clone();
-        let outline_render_actor_ref = self.outline_render_actor.clone();
+        #[cfg(feature = "web")]
+        let (webview_actor_ref, render_actor_ref, outline_render_actor_ref) = (
+            self.webview_actor.clone(),
+            self.render_actor.clone(),
+            self.outline_render_actor.clone(),
+        );
         let recv = move |conn| {
             let h = conn_handler.clone();
             let alive_tx = alive_tx.clone();
@@ -192,8 +202,10 @@ impl Previewer {
                     h.editor_tx.clone(),
                     h.renderer_tx.clone(),
                 );
-                *webview_actor_ref.lock().unwrap() = Some(webview_actor);
-
+                #[cfg(feature = "web")]
+                {
+                    *webview_actor_ref.lock().unwrap() = Some(webview_actor);
+                }
                 let render_actor = actor::render::RenderActor::new(
                     h.renderer_tx.subscribe(),
                     h.doc_sender.clone(),
@@ -201,8 +213,10 @@ impl Previewer {
                     svg.0,
                     h.webview_tx,
                 );
-                *render_actor_ref.lock().unwrap() = Some(render_actor);
-
+                #[cfg(feature = "web")]
+                {
+                    *render_actor_ref.lock().unwrap() = Some(render_actor);
+                }
                 #[cfg(not(feature = "web"))]
                 tokio::spawn(render_actor.run());
 
@@ -212,8 +226,10 @@ impl Previewer {
                     h.editor_tx.clone(),
                     h.span_interner,
                 );
-                *outline_render_actor_ref.lock().unwrap() = Some(outline_render_actor);
-
+                #[cfg(feature = "web")]
+                {
+                    *outline_render_actor_ref.lock().unwrap() = Some(outline_render_actor);
+                }
                 #[cfg(not(feature = "web"))]
                 tokio::spawn(outline_render_actor.run());
 
@@ -229,8 +245,8 @@ impl Previewer {
                 webview_actor.run().await;
             })
         };
-
-        spawn_cpu(async move {
+        #[allow(unused_variables)]
+        let data_plane_handle = spawn_cpu(async move {
             let mut alive_cnt = 0;
             #[cfg(not(feature = "web"))]
             let mut shutdown_bell = tokio::time::interval(idle_timeout);
@@ -272,6 +288,11 @@ impl Previewer {
                 }
             }
         });
+
+        #[cfg(not(feature = "web"))]
+        {
+            self.data_plane_handle = Some(data_plane_handle);
+        }
     }
 }
 

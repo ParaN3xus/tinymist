@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use tinymist_std::error::IgnoreLogging;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
+#[cfg(feature = "web")]
 use tokio::sync::mpsc::error::TryRecvError;
 
 use crate::EditorServerDyn;
@@ -109,7 +110,8 @@ impl ControlPlaneTx {
         self.ctl_rx.recv().await
     }
 
-    fn try_next(&mut self) -> Result<ControlPlaneMessage, TryRecvError> {
+    #[cfg(feature = "web")]
+    fn try_recv(&mut self) -> Result<ControlPlaneMessage, TryRecvError> {
         self.ctl_rx.try_recv()
     }
 }
@@ -303,12 +305,13 @@ impl EditorActor {
         }
     }
 
+    #[cfg(feature = "web")]
     async fn step_sync_inner(&mut self) -> bool {
         while let Ok(msg) = self.mailbox.try_recv() {
             log::trace!("EditorActor: received message from mailbox: {msg:?}");
             self.handle_mailbox_message(msg).await;
         }
-        while let Ok(msg) = self.editor_conn.try_next() {
+        while let Ok(msg) = self.editor_conn.try_recv() {
             log::trace!("EditorActor: received message from mailbox: {msg:?}");
             self.handle_control_panel_message(msg).await;
         }
@@ -316,6 +319,7 @@ impl EditorActor {
         return false;
     }
 
+    #[cfg(feature = "web")]
     pub fn step(&mut self) -> bool {
         futures::executor::block_on(self.step_sync_inner())
     }

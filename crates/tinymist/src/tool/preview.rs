@@ -5,6 +5,8 @@ pub use compile::{PreviewCompileView, ProjectPreviewHandler};
 pub use http::{make_http_server, HttpServer};
 #[cfg(feature = "web")]
 use tinymist_preview::LspMessageAdapter;
+use tinymist_task::TaskWhen;
+use typlite::CompileOnceArgs;
 
 mod compile;
 mod http;
@@ -19,7 +21,10 @@ use lsp_types::Url;
 use reflexo_typst::error::prelude::*;
 use serde::Serialize;
 use serde_json::Value as JsonValue;
-use sync_ls::just_ok;
+use sync_ls::{
+    internal_error, invalid_params, just_future, just_ok, AnySchedulableResponse,
+    SchedulableResponse, TypedLspClient,
+};
 #[cfg(not(feature = "web"))]
 use tinymist_assets::TYPST_PREVIEW_HTML;
 #[cfg(not(feature = "web"))]
@@ -34,7 +39,7 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::actor::preview::{PreviewActor, PreviewRequest, PreviewTab};
 use crate::project::{ProjectInsId, ProjectPreviewState};
-use crate::*;
+use crate::{Config, ServerState};
 
 /// The kind of the preview.
 pub enum PreviewKind {
@@ -328,6 +333,7 @@ impl ServerState {
             ));
         }
 
+        #[allow(unused_variables)]
         let (res, preview_message_tx) = if registered_as_primary {
             let id = primary.id.clone();
 
@@ -355,9 +361,11 @@ impl ServerState {
             return Err(internal_error("entry file must be provided"));
         };
 
-        if cfg!(all(feature = "web", feature = "preview")) {
+        #[cfg(all(feature = "web", feature = "preview"))]
+        {
             self.preview_message_tx = preview_message_tx;
         }
+
         res
     }
 }
@@ -368,6 +376,7 @@ pub struct PreviewState {
     client: TypedLspClient<PreviewState>,
     /// The backend running actor.
     preview_tx: mpsc::UnboundedSender<PreviewRequest>,
+    #[cfg(feature = "web")]
     resp_rx: Option<mpsc::UnboundedReceiver<ControlPlaneResponse>>,
     /// the watchers for the preview
     pub(crate) watchers: ProjectPreviewState,
@@ -389,6 +398,7 @@ impl PreviewState {
         let mut preview = PreviewState {
             client: client.clone(),
             preview_tx,
+            #[cfg(feature = "web")]
             resp_rx: None,
             watchers: watchers.clone(),
             customized_show_document: config.customized_show_document,
@@ -472,16 +482,22 @@ impl PreviewState {
         let previewer = previewer.build(lsp_tx, compile_handler.clone());
 
         #[cfg(not(feature = "web"))]
-        self.client.handle.spawn(async move {
-            let mut resp_rx = resp_rx;
-            while let Some(resp) = resp_rx.recv().await {
-                self.handle_preview_response(resp, &tid);
-            }
-            log::info!("PreviewTask({tid}): response channel closed");
-        });
+        {
+            let tid = task_id.clone();
+            let client = self.client.clone();
+            let customized_show_document = self.customized_show_document;
+            self.client.handle.spawn(async move {
+                let mut resp_rx = resp_rx;
+                while let Some(resp) = resp_rx.recv().await {
+                    Self::handle_preview_response(&client, resp, customized_show_document, &tid);
+                }
+                log::info!("PreviewTask({tid}): response channel closed");
+            });
+        }
 
         // Process preview shutdown
         let tid = task_id.clone();
+
         let preview_tx = self.preview_tx.clone();
         self.client.handle.spawn(async move {
             // shutdown_rx
@@ -529,6 +545,8 @@ impl PreviewState {
 
                 #[cfg(feature = "web")]
                 {
+                    use sync_ls::PreviewNotification;
+                    use sync_ls::PreviewNotificationParams;
                     use tinymist_preview::LspMessageAdapter;
                     adapter_tx
                         .send(LspMessageAdapter::new(
@@ -570,11 +588,25 @@ impl PreviewState {
 
                 Ok(resp)
             }),
-            Some(lsp_message_tx),
+            {
+                #[cfg(feature = "web")]
+                {
+                    Some(lsp_message_tx)
+                }
+                #[cfg(not(feature = "web"))]
+                {
+                    None
+                }
+            },
         )
     }
 
-    fn handle_preview_response(&self, resp: ControlPlaneResponse, tid: &str) {
+    fn handle_preview_response(
+        client: &TypedLspClient<PreviewState>,
+        resp: ControlPlaneResponse,
+        customized_show_document: bool,
+        tid: &str,
+    ) {
         use tinymist_preview::ControlPlaneResponse::*;
 
         match resp {
@@ -586,13 +618,13 @@ impl PreviewState {
             EditorScrollTo(s) => {
                 log::info!("PreviewState: resp_rx received EditorScrollTo, sending notification");
 
-                if self.customized_show_document {
-                    self.client.send_notification::<ScrollSource>(&s)
+                if customized_show_document {
+                    client.send_notification::<ScrollSource>(&s)
                 } else {
-                    send_show_document(&self.client, &s, &tid);
+                    send_show_document(&client, &s, &tid);
                 }
             }
-            Outline(s) => self.client.send_notification::<NotifDocumentOutline>(&s),
+            Outline(s) => client.send_notification::<NotifDocumentOutline>(&s),
         }
     }
 
@@ -613,13 +645,9 @@ impl PreviewState {
         }
 
         for resp in responses {
-            self.handle_preview_response(resp, "web");
+            Self::handle_preview_response(&self.client, resp, self.customized_show_document, "web");
         }
     }
-
-    #[cfg(not(feature = "web"))]
-    #[inline(always)]
-    pub(crate) fn schedule_async(&mut self) {}
 
     /// Kill a preview task. Ignore if the task is not found.
     pub fn kill(&self, task_id: String) -> AnySchedulableResponse {
@@ -741,12 +769,15 @@ pub fn bind_streams(
     previewer.start_data_plane(
         websocket_rx,
         |conn: Result<HyperWebsocketStream, hyper_tungstenite::tungstenite::Error>| {
-            let conn: hyper_tungstenite::WebSocketStream<
-                hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>,
-            > = conn.map_err(error_once_map_string!("cannot receive websocket"))?;
+            use futures::{SinkExt, TryStreamExt};
+            use tinymist_preview::WebsocketAdapter;
 
-            Ok(conn
-                .sink_map_err(|e| error_once!("cannot serve_with websocket", err: e.to_string()))
+            let conn = conn.map_err(error_once_map_string!("cannot receive websocket"))?;
+
+            Ok(futures::lock::Mutex::new(Box::pin(WebsocketAdapter(
+                conn.sink_map_err(
+                    |e| error_once!("cannot serve_with websocket", err: e.to_string()),
+                )
                 .map_err(|e| error_once!("cannot serve_with websocket", err: e.to_string()))
                 .with(|msg| {
                     Box::pin(async move {
@@ -761,7 +792,8 @@ pub fn bind_streams(
                     Message::Text(msg) => WsMessage::Text(msg.as_str().to_owned()),
                     Message::Binary(msg) => WsMessage::Binary(msg),
                     _ => WsMessage::Text("unsupported message".to_owned()),
-                }))
+                }),
+            ))))
         },
     );
 }
@@ -775,5 +807,13 @@ pub fn bind_lsp_channel(
     previewer: &mut Previewer,
     adapter_rx: mpsc::UnboundedReceiver<LspMessageAdapter>,
 ) {
-    previewer.start_data_plane(adapter_rx, |adapter: LspMessageAdapter| Ok(adapter.into()));
+    previewer.start_data_plane(adapter_rx, |adapter: LspMessageAdapter| {
+        use std::pin::Pin;
+
+        use tinymist_preview::PreviewConnectionAdapter;
+
+        Ok(futures::lock::Mutex::new(
+            Box::pin(adapter) as Pin<Box<dyn PreviewConnectionAdapter + Send + 'static>>
+        ))
+    });
 }

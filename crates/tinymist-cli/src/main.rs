@@ -89,6 +89,7 @@ enum Commands {
     #[cfg(feature = "preview")]
     Preview(tinymist::tool::preview::PreviewCliArgs),
     /// Run compile command like `typst-cli compile`
+    #[cfg(feature = "export")]
     #[clap(alias = "c")]
     Compile(CompileArgs),
 
@@ -101,6 +102,7 @@ enum Commands {
     /// Run documents
     #[clap(hide(true))] // still in development
     #[clap(subcommand)]
+    #[cfg(feature = "lock")]
     Doc(tinymist::project::DocCommands),
     /// Run tasks
     #[cfg(feature = "lock")]
@@ -135,7 +137,10 @@ fn main() -> Result<()> {
     set_translations(load_translations(tinymist_assets::L10N_DATA)?);
     // Starts logging
     let _ = tinymist::init_log(tinymist::InitLogOpts {
+        #[cfg(feature = "export")]
         is_transient_cmd: matches!(cmd, Commands::Compile(..)),
+        #[cfg(not(feature = "export"))]
+        is_transient_cmd: false,
         is_test_no_verbose: matches!(&cmd, Commands::Test(test) if !test.verbose),
         output: None,
     });

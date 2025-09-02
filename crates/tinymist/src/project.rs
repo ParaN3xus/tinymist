@@ -227,8 +227,10 @@ impl ServerState {
 
         log::info!("ServerState: creating ProjectState, entry: {entry:?}, inputs: {inputs:?}");
 
-        #[cfg(feature = "web")]
-        let fonts = config.fonts(extra_fonts);
+        let fonts = config.fonts(
+            #[cfg(feature = "web")]
+            extra_fonts,
+        );
 
         #[cfg(all(not(feature = "system"), feature = "web"))]
         let packages =

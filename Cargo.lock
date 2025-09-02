@@ -4860,6 +4860,7 @@ dependencies = [
  "comemo",
  "env_logger",
  "futures",
+ "hyper-tungstenite",
  "indexmap 2.12.1",
  "log",
  "parking_lot",
