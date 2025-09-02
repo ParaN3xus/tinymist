@@ -264,6 +264,7 @@ macro_rules! invalid_data_fmt {
 #[cfg(any(feature = "lsp", feature = "dap"))]
 pub(crate) use invalid_data_fmt;
 
+/// Parameters of Typst Preview Notification
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PreviewNotificationParams {
@@ -271,15 +272,22 @@ pub struct PreviewNotificationParams {
     pub content: PreviewMessageContent,
 }
 
+/// Content of Typst Preview Notification Parameters
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "format")]
 pub enum PreviewMessageContent {
     /// Text message
     #[serde(rename = "text")]
-    Text { data: String },
+    Text {
+        /// Inner text data
+        data: String,
+    },
     /// Binary message (encoded as base64)
     #[serde(rename = "binary")]
-    Binary { data: String },
+    Binary {
+        /// Inner binary data
+        data: String,
+    },
 }
 
 /// Typst Preview Notification

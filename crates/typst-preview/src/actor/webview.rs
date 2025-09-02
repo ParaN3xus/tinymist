@@ -9,7 +9,6 @@ use reflexo_typst::debug_loc::{DocumentPosition, ElementPoint};
 use sync_ls::{PreviewMessageContent, PreviewNotificationParams};
 use tinymist_std::{Error, error::IgnoreLogging};
 use tokio::sync::{broadcast, mpsc};
-use typst::syntax::ast::Bool;
 
 use super::{editor::EditorActorRequest, render::RenderActorRequest};
 use crate::{
@@ -205,6 +204,7 @@ impl WebviewActor {
         }
     }
 
+    #[cfg(not(feature = "web"))]
     pub async fn run(mut self) {
         loop {
             if self.step_async().await {
@@ -340,6 +340,7 @@ impl WebviewActor {
         false
     }
 
+    #[cfg(not(feature = "web"))]
     pub async fn step_async(&mut self) -> bool {
         tokio::select! {
             Ok(msg) = self.mailbox.recv() =>{

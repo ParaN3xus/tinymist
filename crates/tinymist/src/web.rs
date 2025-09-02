@@ -61,6 +61,9 @@ impl TinymistLanguageServer {
         Ok(Self { _client, state })
     }
 
+    /// Schedules the async tasks of the server on some paths. This is used to
+    /// run the server in passive context, for example, in the web
+    /// environment where the server is run in background.
     pub fn schedule_async(&mut self) {
         match &mut self.state.state {
             State::Ready(state) => state.schedule_async(),

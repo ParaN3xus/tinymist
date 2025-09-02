@@ -1,25 +1,17 @@
 //! Document preview tool for Typst
 
 pub use compile::{PreviewCompileView, ProjectPreviewHandler};
-use futures::future::MaybeDone;
 #[cfg(all(feature = "system", feature = "preview"))]
 pub use http::{make_http_server, HttpServer};
 #[cfg(feature = "web")]
 use tinymist_preview::LspMessageAdapter;
-use tokio::runtime::Handle;
 
 mod compile;
 mod http;
 
-#[cfg(feature = "web")]
-use std::pin::Pin;
-#[cfg(feature = "web")]
-use std::task::{Context, Poll};
-
 use std::{collections::HashMap, path::Path, sync::Arc};
 
 use clap::{Parser, ValueEnum};
-use futures::{SinkExt, TryStreamExt};
 #[cfg(all(feature = "system", feature = "preview"))]
 use hyper_tungstenite::{tungstenite::Message, HyperWebsocket, HyperWebsocketStream};
 use lsp_types::notification::Notification;
@@ -28,10 +20,13 @@ use reflexo_typst::error::prelude::*;
 use serde::Serialize;
 use serde_json::Value as JsonValue;
 use sync_ls::just_ok;
+#[cfg(not(feature = "web"))]
 use tinymist_assets::TYPST_PREVIEW_HTML;
+#[cfg(not(feature = "web"))]
+use tinymist_preview::frontend_html;
 use tinymist_preview::{
-    frontend_html, ControlPlaneMessage, ControlPlaneResponse, ControlPlaneRx, ControlPlaneTx,
-    DocToSrcJumpInfo, PreviewBuilder, PreviewConfig, PreviewMode, Previewer, WsMessage,
+    ControlPlaneMessage, ControlPlaneResponse, ControlPlaneRx, ControlPlaneTx, DocToSrcJumpInfo,
+    PreviewBuilder, PreviewConfig, PreviewMode, Previewer, WsMessage,
 };
 use tinymist_query::{LspPosition, LspRange};
 use tinymist_std::error::IgnoreLogging;
@@ -452,6 +447,7 @@ impl PreviewState {
         });
 
         let task_id = args.task_id.clone();
+        #[cfg(feature = "open")]
         let open_in_browser = args.open_in_browser(false);
         log::info!("PreviewTask({task_id}): arguments: {args:#?}");
 
@@ -474,11 +470,6 @@ impl PreviewState {
         let (adapter_tx, adapter_rx) = mpsc::unbounded_channel();
 
         let previewer = previewer.build(lsp_tx, compile_handler.clone());
-
-        // Forward preview responses to lsp client
-        let tid = task_id.clone();
-        let client = self.client.clone();
-        let customized_show_document = self.customized_show_document;
 
         #[cfg(not(feature = "web"))]
         self.client.handle.spawn(async move {
@@ -523,6 +514,7 @@ impl PreviewState {
                 compile_handler.flush_compile();
 
                 // Replace the data plane port in the html to self
+                #[cfg(not(feature = "web"))]
                 let frontend_html =
                     frontend_html(TYPST_PREVIEW_HTML, args.preview.preview_mode, "/");
 
@@ -775,6 +767,10 @@ pub fn bind_streams(
 }
 
 #[cfg(feature = "web")]
+/// Bind the Lsp message streams to the previewer.
+/// We cannot start a websocket server in a web environment as we do in
+/// a system environment, so we utilize the LSP connection to transfer
+/// PreviewNotification messages, mimicking a websocket connection.
 pub fn bind_lsp_channel(
     previewer: &mut Previewer,
     adapter_rx: mpsc::UnboundedReceiver<LspMessageAdapter>,

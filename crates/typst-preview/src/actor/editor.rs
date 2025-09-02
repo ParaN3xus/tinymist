@@ -7,12 +7,12 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
 
+use crate::EditorServerDyn;
 use crate::actor::render::RenderActorRequest;
 use crate::debug_loc::{InternQuery, SpanInterner};
 use crate::outline::Outline;
-use crate::EditorServerDyn;
 use crate::{
-    ChangeCursorPositionRequest, DocToSrcJumpInfo, EditorServer, MemoryFiles, MemoryFilesShort,
+    ChangeCursorPositionRequest, DocToSrcJumpInfo, MemoryFiles, MemoryFilesShort,
     ResolveSourceLocRequest,
 };
 
@@ -81,10 +81,12 @@ impl ControlPlaneTx {
 }
 
 impl ControlPlaneTx {
+    #[cfg(not(feature = "web"))]
     fn need_sync_files(&self) -> bool {
         self.is_standalone
     }
 
+    #[cfg(not(feature = "web"))]
     async fn sync_editor_changes(&mut self) {
         self.resp_ctl_plane(
             "SyncEditorChanges",
@@ -102,6 +104,7 @@ impl ControlPlaneTx {
         sent
     }
 
+    #[cfg(not(feature = "web"))]
     async fn next(&mut self) -> Option<ControlPlaneMessage> {
         self.ctl_rx.recv().await
     }
@@ -265,6 +268,7 @@ impl EditorActor {
         }
     }
 
+    #[cfg(not(feature = "web"))]
     pub async fn run(mut self) {
         if self.editor_conn.need_sync_files() {
             self.editor_conn.sync_editor_changes().await;
@@ -284,6 +288,7 @@ impl EditorActor {
         }
     }
 
+    #[cfg(not(feature = "web"))]
     pub async fn step_async(&mut self) -> bool {
         tokio::select! {
             Some(msg) = self.mailbox.recv() => {
