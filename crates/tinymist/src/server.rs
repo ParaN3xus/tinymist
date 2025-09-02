@@ -3,14 +3,10 @@ use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use base64::engine::general_purpose;
-use base64::Engine;
 pub(crate) use futures::Future;
-use lsp_types::notification::Notification;
 use lsp_types::request::ShowMessageRequest;
 use lsp_types::*;
 use reflexo::debug_loc::LspPosition;
-use serde::{Deserialize, Serialize};
 use sync_ls::*;
 use tinymist_preview::WsMessage;
 use tinymist_query::ServerInfoResponse;
@@ -20,7 +16,6 @@ use tokio::sync::mpsc;
 use typst::syntax::Source;
 
 use crate::actor::editor::{EditorActor, EditorRequest};
-use crate::actor::preview::PreviewActor;
 use crate::input::FsChange;
 use crate::lsp::query::OnEnter;
 use crate::project::{EntryResolver, LspInterrupt, ProjectInsId, ProjectState};

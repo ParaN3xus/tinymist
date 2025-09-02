@@ -52,7 +52,7 @@ parking_lot.workspace = true
 paste.workspace = true
 rayon.workspace = true
 reflexo.workspace = true
-reflexo-typst = { workspace = true, features = ["system", "svg"] }
+reflexo-typst = { workspace = true, features = ["svg"] }
 reflexo-vec2svg.workspace = true
 rpds.workspace = true
 serde.workspace = true
@@ -63,7 +63,7 @@ sync-ls = { workspace = true, features = ["lsp", "server", "system"] }
 tinymist-assets = { workspace = true }
 tinymist-query.workspace = true
 tinymist-std = { workspace = true, default-features = false }
-tinymist = { workspace = true, default-features = false, features = ["system"] }
+tinymist = { workspace = true, default-features = false }
 tinymist-project = { workspace = true, features = ["lsp"] }
 tinymist-render.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "io-std"] }
@@ -104,7 +104,7 @@ default = [
     "dap",
 ]
 
-cli = ["sync-ls/clap", "clap/wrap_help"]
+cli = ["sync-ls/clap", "clap/wrap_help", "tinymist/system", "reflexo-typst/system"]
 
 dhat-heap = ["dhat"]
 
