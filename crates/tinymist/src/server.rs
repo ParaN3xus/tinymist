@@ -8,6 +8,7 @@ use lsp_types::request::ShowMessageRequest;
 use lsp_types::*;
 use reflexo::debug_loc::LspPosition;
 use sync_ls::*;
+#[cfg(feature = "web")]
 use tinymist_preview::WsMessage;
 use tinymist_query::ServerInfoResponse;
 use tinymist_std::error::prelude::*;
@@ -369,9 +370,10 @@ impl ServerState {
             .with_resource("/package/docs", State::resource_package_docs);
 
         #[cfg(all(feature = "web", feature = "preview"))]
-        let mut provider =
+        let provider =
             provider.with_notification::<PreviewNotification>(State::handle_preview_notification);
 
+        let mut provider = provider;
         // todo: generalize me
         provider.args.add_commands(
             &Some("tinymist.getResources")

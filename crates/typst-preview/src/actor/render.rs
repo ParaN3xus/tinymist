@@ -134,6 +134,7 @@ impl RenderActor {
         log::info!("RenderActor: exiting")
     }
 
+    #[cfg(feature = "web")]
     pub fn step(&mut self) {
         while let Ok(req) = self.mailbox.try_recv() {
             self.handle(Ok(req));
@@ -395,6 +396,7 @@ impl OutlineRenderActor {
         return false;
     }
 
+    #[cfg(feature = "web")]
     pub fn step(&mut self) -> bool {
         while let Ok(req) = self.signal.try_recv() {
             self.handle(Ok(req));

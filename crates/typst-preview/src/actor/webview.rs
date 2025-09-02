@@ -1,7 +1,8 @@
-use std::sync::Arc;
+use std::{pin::Pin, sync::Arc};
 #[cfg(feature = "web")]
-use std::{pin::Pin, task::Context, task::Poll};
+use std::{task::Context, task::Poll};
 
+#[cfg(feature = "web")]
 use base64::{Engine, engine::general_purpose};
 use futures::{SinkExt, lock::Mutex};
 use reflexo_typst::debug_loc::{DocumentPosition, ElementPoint};
@@ -15,6 +16,9 @@ use crate::{
     WsMessage,
     actor::{editor::DocToSrcJumpResolveRequest, render::ResolveSpanRequest},
 };
+
+#[cfg(not(feature = "web"))]
+use futures::StreamExt;
 
 // pub type CursorPosition = DocumentPosition;
 pub type SrcToDocJumpInfo = DocumentPosition;
@@ -43,6 +47,43 @@ fn positions_req(event: &'static str, positions: Vec<DocumentPosition>) -> Strin
             .join(",")
 }
 
+pub trait PreviewMessageWsMessageTransition {
+    /// Convert to WsMessage
+    fn to_ws_message(self) -> WsMessage;
+    /// Create from WsMessage
+    fn from_ws_message(msg: WsMessage) -> Self;
+}
+
+#[cfg(feature = "web")]
+impl PreviewMessageWsMessageTransition for PreviewMessageContent {
+    /// Convert to WsMessage
+    fn to_ws_message(self) -> WsMessage {
+        match self {
+            PreviewMessageContent::Text { data } => WsMessage::Text(data),
+            PreviewMessageContent::Binary { data } => {
+                let bytes = general_purpose::STANDARD.decode(data).unwrap_or_default();
+                WsMessage::Binary(bytes)
+            }
+        }
+    }
+    /// Create from WsMessage
+    fn from_ws_message(msg: WsMessage) -> Self {
+        match msg {
+            WsMessage::Text(text) => PreviewMessageContent::Text { data: text },
+            WsMessage::Binary(bytes) => PreviewMessageContent::Binary {
+                data: general_purpose::STANDARD.encode(bytes),
+            },
+        }
+    }
+}
+
+pub trait PreviewConnectionAdapter:
+    futures::Sink<WsMessage, Error = reflexo_typst::Error>
+    + futures::Stream<Item = Result<WsMessage, reflexo_typst::Error>>
+{
+    fn try_recv(self: Pin<&mut Self>) -> Result<Option<WsMessage>, mpsc::error::TryRecvError>;
+}
+
 #[cfg(feature = "web")]
 pub struct LspMessageAdapter {
     rx: mpsc::UnboundedReceiver<WsMessage>,
@@ -60,6 +101,7 @@ impl Default for LspMessageAdapter {
     }
 }
 
+#[cfg(feature = "web")]
 impl LspMessageAdapter {
     pub fn new<F>(rx: mpsc::UnboundedReceiver<WsMessage>, send_fn: F) -> Self
     where
@@ -70,8 +112,13 @@ impl LspMessageAdapter {
             send_fn: Box::new(send_fn),
         }
     }
+}
 
-    pub fn try_next(&mut self) -> Result<Option<WsMessage>, mpsc::error::TryRecvError> {
+#[cfg(feature = "web")]
+impl PreviewConnectionAdapter for LspMessageAdapter {
+    fn try_recv(
+        mut self: Pin<&mut LspMessageAdapter>,
+    ) -> Result<Option<WsMessage>, mpsc::error::TryRecvError> {
         match self.rx.try_recv() {
             Ok(msg) => Ok(Some(msg)),
             Err(mpsc::error::TryRecvError::Empty) => Err(mpsc::error::TryRecvError::Empty),
@@ -119,6 +166,7 @@ impl futures::Stream for LspMessageAdapter {
     }
 }
 
+#[cfg(feature = "web")]
 impl std::future::Future for LspMessageAdapter {
     type Output = Self;
 
@@ -128,42 +176,80 @@ impl std::future::Future for LspMessageAdapter {
     }
 }
 
-pub trait PreviewMessageWsMessageTransition {
-    /// Convert to WsMessage
-    fn to_ws_message(self) -> WsMessage;
-    /// Create from WsMessage
-    fn from_ws_message(msg: WsMessage) -> Self;
-}
+pub struct WebsocketAdapter<S>(pub S);
 
-impl PreviewMessageWsMessageTransition for PreviewMessageContent {
-    /// Convert to WsMessage
-    fn to_ws_message(self) -> WsMessage {
-        match self {
-            PreviewMessageContent::Text { data } => WsMessage::Text(data),
-            PreviewMessageContent::Binary { data } => {
-                let bytes = general_purpose::STANDARD.decode(data).unwrap_or_default();
-                WsMessage::Binary(bytes)
-            }
-        }
-    }
-    /// Create from WsMessage
-    fn from_ws_message(msg: WsMessage) -> Self {
-        match msg {
-            WsMessage::Text(text) => PreviewMessageContent::Text { data: text },
-            WsMessage::Binary(bytes) => PreviewMessageContent::Binary {
-                data: general_purpose::STANDARD.encode(bytes),
-            },
+impl<S> PreviewConnectionAdapter for WebsocketAdapter<S>
+where
+    S: futures::Sink<WsMessage, Error = reflexo_typst::Error>
+        + futures::Stream<Item = Result<WsMessage, reflexo_typst::Error>>
+        + Unpin,
+{
+    fn try_recv(self: Pin<&mut Self>) -> Result<Option<WsMessage>, mpsc::error::TryRecvError> {
+        use futures::StreamExt;
+        use std::task::{Context, Poll};
+
+        let waker = futures::task::noop_waker();
+        let mut cx = Context::from_waker(&waker);
+
+        let this = self.get_mut();
+
+        match this.0.poll_next_unpin(&mut cx) {
+            Poll::Ready(Some(Ok(msg))) => Ok(Some(msg)),
+            Poll::Ready(Some(Err(_))) => Err(mpsc::error::TryRecvError::Disconnected),
+            Poll::Ready(None) => Err(mpsc::error::TryRecvError::Disconnected),
+            Poll::Pending => Err(mpsc::error::TryRecvError::Empty),
         }
     }
 }
 
-#[cfg(feature = "web")]
-pub(crate) type WebviewActorConnectionAdaptor = LspMessageAdapter;
-#[cfg(not(feature = "web"))]
-pub(crate) type WebviewActorConnectionAdaptor = HyperWebsocketStream;
+impl<S> futures::Sink<WsMessage> for WebsocketAdapter<S>
+where
+    S: futures::Sink<WsMessage, Error = reflexo_typst::Error> + Unpin,
+{
+    type Error = reflexo_typst::Error;
+
+    fn poll_ready(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        std::pin::Pin::new(&mut self.0).poll_ready(cx)
+    }
+
+    fn start_send(mut self: std::pin::Pin<&mut Self>, item: WsMessage) -> Result<(), Self::Error> {
+        std::pin::Pin::new(&mut self.0).start_send(item)
+    }
+
+    fn poll_flush(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        std::pin::Pin::new(&mut self.0).poll_flush(cx)
+    }
+
+    fn poll_close(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        std::pin::Pin::new(&mut self.0).poll_close(cx)
+    }
+}
+
+impl<S> futures::Stream for WebsocketAdapter<S>
+where
+    S: futures::Stream<Item = Result<WsMessage, reflexo_typst::Error>> + Unpin,
+{
+    type Item = Result<WsMessage, reflexo_typst::Error>;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        std::pin::Pin::new(&mut self.0).poll_next(cx)
+    }
+}
 
 pub struct WebviewActor {
-    webview_websocket_conn: Arc<Mutex<WebviewActorConnectionAdaptor>>,
+    webview_websocket_conn: Arc<Mutex<Pin<Box<dyn PreviewConnectionAdapter + Send>>>>,
 
     svg_receiver: mpsc::UnboundedReceiver<Vec<u8>>,
     mailbox: broadcast::Receiver<WebviewActorRequest>,
@@ -187,7 +273,7 @@ impl WebviewActor {
         }
     }
     pub fn new(
-        websocket_conn: Arc<Mutex<WebviewActorConnectionAdaptor>>,
+        websocket_conn: Arc<Mutex<Pin<Box<dyn PreviewConnectionAdapter + Send>>>>,
         svg_receiver: mpsc::UnboundedReceiver<Vec<u8>>,
         broadcast_sender: broadcast::Sender<WebviewActorRequest>,
         mailbox: broadcast::Receiver<WebviewActorRequest>,
@@ -216,21 +302,18 @@ impl WebviewActor {
 
     pub async fn handle_mailbox_message(&mut self, msg: WebviewActorRequest) {
         log::trace!("WebviewActor: received message from mailbox: {msg:?}");
+        let mut conn = self.webview_websocket_conn.lock().await;
         match msg {
             WebviewActorRequest::SrcToDocJump(jump_info) => {
                 let msg = positions_req("jump", jump_info);
-                self.webview_websocket_conn
-                    .lock()
-                    .await
+                conn.as_mut()
                     .send(WsMessage::Binary(msg.into_bytes()))
                     .await
                     .log_error("WebViewActor");
             }
             WebviewActorRequest::ViewportPosition(jump_info) => {
                 let msg = position_req("viewport", jump_info);
-                self.webview_websocket_conn
-                    .lock()
-                    .await
+                conn.as_mut()
                     .send(WsMessage::Binary(msg.into_bytes()))
                     .await
                     .log_error("WebViewActor");
@@ -238,9 +321,7 @@ impl WebviewActor {
             WebviewActorRequest::CursorPaths(jump_info) => {
                 let json = serde_json::to_string(&jump_info).unwrap();
                 let msg = format!("cursor-paths,{json}");
-                self.webview_websocket_conn
-                    .lock()
-                    .await
+                conn.as_mut()
                     .send(WsMessage::Binary(msg.into_bytes()))
                     .await
                     .log_error("WebViewActor");
@@ -369,6 +450,7 @@ impl WebviewActor {
         }
     }
 
+    #[cfg(feature = "web")]
     async fn step_sync_inner(&mut self) -> bool {
         while let Ok(msg) = self.mailbox.try_recv() {
             log::trace!("WebviewActor: received message from mailbox: {msg:?}");
@@ -382,7 +464,7 @@ impl WebviewActor {
         {
             let mut conn = self.webview_websocket_conn.lock().await;
             loop {
-                match conn.try_next() {
+                match conn.as_mut().try_recv() {
                     Ok(Some(msg)) => {
                         websocket_messages.push(Ok(msg));
                     }
@@ -407,6 +489,7 @@ impl WebviewActor {
         false
     }
 
+    #[cfg(feature = "web")]
     pub fn step(&mut self) -> bool {
         futures::executor::block_on(self.step_sync_inner())
     }

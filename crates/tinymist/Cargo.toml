@@ -108,7 +108,7 @@ cargo_metadata = "0.18.0"
 
 [features]
 dap = ["sync-ls/dap", "tinymist-debug"]
-default = ["web", "no-content-hint", "preview"]
+default = ["no-content-hint", "preview"]
 preview = [
     # "open",
     "http-body-util",

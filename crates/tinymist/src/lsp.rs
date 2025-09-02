@@ -205,6 +205,7 @@ impl ServerState {
         Ok(())
     }
 
+    #[cfg(all(feature = "preview", feature = "web"))]
     pub(crate) fn handle_preview_notification(
         &mut self,
         params: PreviewNotificationParams,

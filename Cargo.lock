@@ -4434,6 +4434,7 @@ dependencies = [
  "comemo",
  "env_logger",
  "futures",
+ "hyper-tungstenite",
  "indexmap 2.10.0",
  "log",
  "parking_lot",
