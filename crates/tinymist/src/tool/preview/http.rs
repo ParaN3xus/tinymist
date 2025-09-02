@@ -1,19 +1,15 @@
 //! Document preview tool for Typst
+#![cfg(all(feature = "system", feature = "preview"))]
 
 use std::net::SocketAddr;
 use std::sync::LazyLock;
 
 use hyper::header::HeaderValue;
-use hyper::service::service_fn;
-#[cfg(all(feature = "system", feature = "preview"))]
 use hyper_tungstenite::HyperWebsocket;
-#[cfg(all(feature = "system", feature = "preview"))]
 use hyper_util::rt::TokioIo;
-#[cfg(all(feature = "system", feature = "preview"))]
 use hyper_util::server::graceful::GracefulShutdown;
 use lsp_types::Url;
-use tinymist_std::error::IgnoreLogging;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::oneshot;
 
 /// created by `make_http_server`
 pub struct HttpServer {
@@ -25,7 +21,6 @@ pub struct HttpServer {
     pub join: tokio::task::JoinHandle<()>,
 }
 
-#[cfg(all(feature = "system", feature = "preview"))]
 /// Create a http server for the previewer.
 pub async fn make_http_server(
     frontend_html: String,
