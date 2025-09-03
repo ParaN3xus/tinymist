@@ -362,7 +362,6 @@ impl WebviewActor {
             return true;
         };
         if msg == "current" {
-            log::debug!("Webview Actor: received current, requesting RenderFullLatest");
             self.render_sender
                 .send(RenderActorRequest::RenderFullLatest)
                 .log_error("WebViewActor");

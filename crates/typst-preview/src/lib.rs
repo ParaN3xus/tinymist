@@ -324,10 +324,6 @@ impl PreviewBuilder {
     }
 
     pub fn compile_watcher(&self, task_id: String) -> &Arc<CompileWatcher> {
-        log::info!(
-            "PreviewBuilder: creating compile watcher with id: {}",
-            task_id
-        );
         self.compile_watcher.get_or_init(|| {
             Arc::new(CompileWatcher {
                 task_id,
@@ -581,11 +577,6 @@ impl CompileWatcher {
         match status {
             CompileStatus::CompileSuccess => {
                 // it is ok to ignore the error here
-                log::info!(
-                    "CompileWatcher id {}: Compile succeed! Writing to doc_sender",
-                    self.task_id,
-                );
-
                 *self.doc_sender.write() = Some(view);
 
                 // todo: is it right that ignore zero broadcast receiver?
