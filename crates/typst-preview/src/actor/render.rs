@@ -170,10 +170,6 @@ impl RenderActor {
         };
 
         let data = self.render(has_full_render, &document);
-        log::debug!(
-            "RenderActor: rendered, svg sender sending data of {} bytes!!!",
-            data.len()
-        );
 
         let Ok(_) = self.svg_sender.send(data) else {
             log::info!("RenderActor: svg_sender is dropped");

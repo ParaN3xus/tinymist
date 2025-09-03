@@ -233,7 +233,7 @@ impl ServerState {
                 match tx.send(ws_message) {
                     Ok(_) => {}
                     Err(err) => {
-                        log::error!("Failed to send message: {}", err);
+                        log::error!("Failed to send preview message: {}", err);
                     }
                 }
             }

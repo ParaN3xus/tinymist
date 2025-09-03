@@ -51,8 +51,6 @@ impl PreviewActor {
         while let Some(req) = self.preview_rx.recv().await {
             self.handle(req);
         }
-
-        log::info!("preview actor is stopped");
     }
 
     pub fn step(&mut self) {
