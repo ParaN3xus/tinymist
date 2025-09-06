@@ -105,7 +105,12 @@ fn url_to_file_path(uri: &Url) -> PathBuf {
 #[cfg(target_arch = "wasm32")]
 fn url_to_file_path(uri: &Url) -> PathBuf {
     // In WASM, manually parse the URL path
-    PathBuf::from(uri.path())
+    use percent_encoding::percent_decode_str;
+
+    let decoded = percent_decode_str(uri.path())
+        .decode_utf8_lossy()
+        .to_string();
+    PathBuf::from(decoded)
 }
 #[cfg(test)]
 mod test {
