@@ -5,9 +5,9 @@ use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
 
 use crate::{
-    attributes::{md_attr, IdocAttr, TypliteAttrsParser},
-    common::ExternalFrameNode,
     ColorTheme,
+    attributes::{IdocAttr, TypliteAttrsParser, md_attr},
+    common::ExternalFrameNode,
 };
 use base64::Engine;
 use cmark_writer::ast::{HtmlAttribute, HtmlElement as CmarkHtmlElement, Node};
@@ -15,10 +15,10 @@ use ecow::{eco_format, EcoString};
 use tinymist_project::diag::print_diagnostics_to_string;
 use tinymist_project::{base::ShadowApi, EntryReader, TaskInputs, MEMORY_MAIN_ENTRY};
 use typst::{
+    World,
     foundations::{Bytes, Dict, IntoValue},
     layout::{Abs, Frame},
     utils::LazyHash,
-    World,
 };
 use typst_html::{HtmlElement, HtmlNode};
 
