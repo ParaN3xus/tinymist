@@ -528,16 +528,18 @@ impl<F: CompilerFeat + Send + Sync + 'static, Ext: Default + 'static> ProjectCom
                 let proj =
                     Self::find_project(&mut self.primary, &mut self.dedicates, artifact.id());
 
-                let processed = proj.process_compile(artifact);
+                let processed = proj.process_compile(artifact.clone());
 
                 if processed {
                     self.deps
                         .project_deps
                         .insert_mut(proj.id.clone(), proj.deps.clone());
 
-                    let event = NotifyMessage::SyncDependency(Box::new(self.deps.clone()));
-                    let err = self.dep_tx.send(event);
-                    log_send_error("dep_tx", err);
+                    if !artifact.has_errors() {
+                        let event = NotifyMessage::SyncDependency(Box::new(self.deps.clone()));
+                        let err = self.dep_tx.send(event);
+                        log_send_error("dep_tx", err);
+                    }
                 }
             }
             Interrupt::Settle(id) => {
