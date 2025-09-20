@@ -36,13 +36,13 @@ fn test_help() {
     Usage: tinymist [COMMAND]
 
     Commands:
-      probe       Probe existence (Nop run)
-      lsp         Run language server
-      dap         Run debug adapter
-      preview     Run preview server
-      compile     Run compile command like `typst-cli compile`
-      completion  Generate completion script to stdout
-      test        Test a document and give summary
+      probe       Probes existence (Nop run)
+      completion  Generates completion script to stdout
+      lsp         Runs language server
+      dap         Runs debug adapter
+      preview     Runs preview server
+      test        Test a document and gives summary
+      compile     Runs compile command like `typst-cli compile`
       help        Print this message or the help of the given subcommand(s)
 
     Options:
@@ -60,34 +60,17 @@ fn test_help_lsp() {
     success: true
     exit_code: 0
     ----- stdout -----
-    Run language server
+    Runs language server
 
     Usage: tinymist lsp [OPTIONS]
 
     Options:
-          --mirror <FILE>
-              Mirror the stdin to the file
-              
-              [default: ]
-
-          --replay <FILE>
-              Replay input from the file
-              
-              [default: ]
-
-          --font-path <DIR>
-              Add additional directories that are recursively searched for fonts.
-              
-              If multiple paths are specified, they are separated by the system's path separator (`:` on
-              Unix-like systems and `;` on Windows).
-              
-              [env: TYPST_FONT_PATHS=REDACTED]
-
-          --ignore-system-fonts
-              Ensure system fonts won't be searched, unless explicitly included via `--font-path`
-
-      -h, --help
-              Print help (see a summary with '-h')
+          --mirror <FILE>        Mirror the stdin to the file [default: ]
+          --replay <FILE>        Replay input from the file [default: ]
+          --font-path <DIR>      Font paths [env: TYPST_FONT_PATHS=REDACTED]
+          --ignore-system-fonts  Ensures system fonts won't be searched, unless explicitly included via
+                                 `--font-path`
+      -h, --help                 Print help
 
     ----- stderr -----
     ");
@@ -100,17 +83,16 @@ fn test_help_compile() {
     success: true
     exit_code: 0
     ----- stdout -----
-    Run compile command like `typst-cli compile`
+    Runs compile command like `typst-cli compile`
 
     Usage: tinymist compile [OPTIONS] <INPUT> [OUTPUT]
 
     Arguments:
       <INPUT>
-              Specify the path to input Typst file
+              Path to input Typst file
 
       [OUTPUT]
-              Provide the path to output file (PDF, PNG, SVG, or HTML). Use `-` to write output to
-              stdout.
+              Path to output file (PDF, PNG, SVG, or HTML). Use `-` to write output to stdout.
               
               For output formats emitting one file per page (PNG & SVG), a page number template must be
               present if the source document renders to multiple pages. Use `{p}` for page numbers,
@@ -119,37 +101,36 @@ fn test_help_compile() {
 
     Options:
           --name <NAME>
-              Give a task name to the document
+              Give a name to the document
 
           --root <DIR>
-              Configure the project root (for absolute paths). If the path is relative, it will be
-              resolved relative to the current working directory (PWD)
+              Configures the project root (for absolute paths)
               
               [env: TYPST_ROOT=REDACTED]
 
           --font-path <DIR>
-              Add additional directories that are recursively searched for fonts.
-              
-              If multiple paths are specified, they are separated by the system's path separator (`:` on
-              Unix-like systems and `;` on Windows).
+              Font paths
               
               [env: TYPST_FONT_PATHS=REDACTED]
 
           --ignore-system-fonts
-              Ensure system fonts won't be searched, unless explicitly included via `--font-path`
+              Ensures system fonts won't be searched, unless explicitly included via `--font-path`
 
           --package-path <DIR>
-              Specify a custom path to local packages, defaults to system-dependent location
+              Custom path to local packages, defaults to system-dependent location
               
               [env: TYPST_PACKAGE_PATH=REDACTED]
 
           --package-cache-path <DIR>
-              Specify a custom path to package cache, defaults to system-dependent location
+              Custom path to package cache, defaults to system-dependent location
               
               [env: TYPST_PACKAGE_CACHE_PATH=REDACTED]
 
+          --task <TASK_NAME>
+              Name a task
+
           --when <WHEN>
-              Configure when to run the task
+              When to run the task
 
               Possible values:
               - never:              Never watch to run task
@@ -161,7 +142,7 @@ fn test_help_compile() {
               - script:             Checks by running a typst script
 
       -f, --format <FORMAT>
-              Specify the format of the output file, inferred from the extension by default
+              The format of the output file, inferred from the extension by default
 
               Possible values:
               - pdf:  Export to PDF
@@ -170,7 +151,7 @@ fn test_help_compile() {
               - html: Export to HTML
 
           --pages <PAGES>
-              Specify which pages to export. When unspecified, all pages are exported.
+              Which pages to export. When unspecified, all pages are exported.
               
               Pages to export are separated by commas, and can be either simple page numbers (e.g. '2,5'
               to export only pages 2 and 5) or page ranges (e.g. '2,3-6,8-' to export page 2, pages 3 to
@@ -180,9 +161,7 @@ fn test_help_compile() {
               (therefore not being affected by the document's page counter).
 
           --pdf-standard <PDF_STANDARD>
-              Specify the PDF standards that Typst will enforce conformance with.
-              
-              If multiple standards are specified, they are separated by commas.
+              One (or multiple comma-separated) PDF standards that Typst will enforce conformance with
 
               Possible values:
               - 1.7:  PDF 1.7
@@ -190,17 +169,15 @@ fn test_help_compile() {
               - a-3b: PDF/A-3b
 
           --ppi <PPI>
-              Specify the PPI (pixels per inch) to use for PNG export
+              The PPI (pixels per inch) to use for PNG export
               
               [default: 144]
 
           --save-lock
-              Save the compilation arguments to the lock file. If `--lockfile` is not set, the lock file
-              will be saved in the cwd
+              Saves the compilation arguments to the lock file
 
           --lockfile <LOCKFILE>
-              Specify the path to the lock file. If the path is set, the lockfile will be saved
-              (--save-lock)
+              Specifies the path to the lock file. If the path is set, the lock file will be saved
 
       -h, --help
               Print help (see a summary with '-h')
@@ -216,38 +193,33 @@ fn test_help_preview() {
     success: true
     exit_code: 0
     ----- stdout -----
-    Run preview server
+    Runs preview server
 
     Usage: tinymist preview [OPTIONS] [INPUT]
 
     Arguments:
       [INPUT]
-              Specify the path to input Typst file. If the path is relative, it will be resolved
-              relative to the current working directory (PWD)
+              Path to input Typst file
 
     Options:
           --preview-mode <MODE>
-              Configure the preview mode
+              Preview mode
+
+              Possible values:
+              - document: Preview mode for regular document
+              - slide:    Preview mode for slide
               
               [default: document]
 
-              Possible values:
-              - document: Would like to preview a regular document
-              - slide:    Would like to preview slides
-
           --partial-rendering <ENABLE_PARTIAL_RENDERING>
-              Only render visible part of the document.
-              
-              This can improve performance but still being experimental.
+              Only render visible part of the document. This can improve performance but still being
+              experimental
               
               [possible values: true, false]
 
           --invert-colors <INVERT_COLORS>
-              Configure the way to invert colors of the preview.
-              
-              This is useful for dark themes without cost.
-              
-              Please note you could see the original colors when you hover elements in the preview.
+              Invert colors of the preview (useful for dark themes without cost). Please note you could
+              see the origin colors when you hover elements in the preview.
               
               It is also possible to specify strategy to each element kind by an object map in JSON
               format.
@@ -268,50 +240,37 @@ fn test_help_preview() {
               ```shell --invert-colors='{"rest": "always", "image": "never"}' ```
 
           --root <DIR>
-              Configure the project root (for absolute paths)
+              Configures the project root (for absolute paths)
 
           --font-path <DIR>
-              Add additional directories that are recursively searched for fonts.
-              
-              If multiple paths are specified, they are separated by the system's path separator (`:` on
-              Unix-like systems and `;` on Windows).
+              Font paths
               
               [env: TYPST_FONT_PATHS=REDACTED]
 
           --ignore-system-fonts
-              Ensure system fonts won't be searched, unless explicitly included via `--font-path`
+              Ensures system fonts won't be searched, unless explicitly included via `--font-path`
 
           --package-path <DIR>
-              Specify a custom path to local packages, defaults to system-dependent location
+              Custom path to local packages, defaults to system-dependent location
               
               [env: TYPST_PACKAGE_PATH=REDACTED]
 
           --package-cache-path <DIR>
-              Specify a custom path to package cache, defaults to system-dependent location
+              Custom path to package cache, defaults to system-dependent location
               
               [env: TYPST_PACKAGE_CACHE_PATH=REDACTED]
 
           --features <FEATURES>
-              Enable in-development features that may be changed or removed at any time
+              Enables in-development features that may be changed or removed at any time
               
               [env: TYPST_FEATURES=REDACTED]
-
-              Possible values:
-              - html: The HTML feature
+              [possible values: html]
 
           --input <key=value>
-              Add a string key-value pair visible through `sys.inputs`.
-              
-              ### Examples
-              
-              Tell the script that `sys.inputs.foo` is `"bar"` (type: `str`).
-              
-              ```bash tinymist compile --input foo=bar ```
+              Add a string key-value pair visible through `sys.inputs`
 
           --pdf-standard <PDF_STANDARD>
-              Specify the PDF standards that Typst will enforce conformance with.
-              
-              If multiple standards are specified, they are separated by commas.
+              One (or multiple comma-separated) PDF standards that Typst will enforce conformance with
 
               Possible values:
               - 1.7:  PDF 1.7
@@ -319,15 +278,13 @@ fn test_help_preview() {
               - a-3b: PDF/A-3b
 
           --cert <CERT_PATH>
-              Specify the path to CA certificate file for network access, especially for downloading
-              typst packages
+              Path to CA certificate file for network access, especially for downloading typst packages
               
               [env: TYPST_CERT=REDACTED]
 
           --host <HOST>
-              (Deprecated) Configure (File) Host address for the preview server.
-              
-              Note: if it equals to `data_plane_host`, same address will be used.
+              (Deprecated) (File) Host for the preview server. Note: if it equals to `data_plane_host`,
+              same address will be used
               
               [default: ]
 
