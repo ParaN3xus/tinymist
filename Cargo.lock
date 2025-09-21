@@ -786,7 +786,7 @@ dependencies = [
 
 [[package]]
 name = "crityp"
-version = "0.13.27"
+version = "0.13.29"
 dependencies = [
  "anyhow",
  "base64",
@@ -4312,7 +4312,7 @@ dependencies = [
 
 [[package]]
 name = "sync-ls"
-version = "0.13.27"
+version = "0.13.29"
 dependencies = [
  "anyhow",
  "clap",
@@ -4445,7 +4445,7 @@ dependencies = [
 
 [[package]]
 name = "tests"
-version = "0.13.27"
+version = "0.13.29"
 dependencies = [
  "insta",
  "insta-cmd",
@@ -4569,7 +4569,7 @@ dependencies = [
 
 [[package]]
 name = "tinymist"
-version = "0.13.27"
+version = "0.13.29"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4645,7 +4645,7 @@ dependencies = [
 
 [[package]]
 name = "tinymist-analysis"
-version = "0.13.27"
+version = "0.13.29"
 dependencies = [
  "comemo",
  "dashmap",
@@ -4683,11 +4683,11 @@ checksum = "d0876c1227999103ab17c388cf942279fc6fcd19e45e9e4f26f653f58dc64c0d"
 
 [[package]]
 name = "tinymist-assets"
-version = "0.13.27"
+version = "0.13.29"
 
 [[package]]
 name = "tinymist-bench-font-load"
-version = "0.13.27"
+version = "0.13.29"
 dependencies = [
  "divan",
  "tinymist",
@@ -4695,7 +4695,7 @@ dependencies = [
 
 [[package]]
 name = "tinymist-cli"
-version = "0.13.27"
+version = "0.13.29"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4769,7 +4769,7 @@ dependencies = [
 
 [[package]]
 name = "tinymist-dap"
-version = "0.13.27"
+version = "0.13.29"
 dependencies = [
  "base64",
  "comemo",
@@ -4788,7 +4788,7 @@ dependencies = [
 
 [[package]]
 name = "tinymist-debug"
-version = "0.13.27"
+version = "0.13.29"
 dependencies = [
  "base64",
  "comemo",
@@ -4828,7 +4828,7 @@ dependencies = [
 
 [[package]]
 name = "tinymist-lint"
-version = "0.13.27"
+version = "0.13.29"
 dependencies = [
  "comemo",
  "insta",
@@ -4869,7 +4869,7 @@ dependencies = [
 
 [[package]]
 name = "tinymist-preview"
-version = "0.13.27"
+version = "0.13.29"
 dependencies = [
  "clap",
  "comemo",
@@ -4921,7 +4921,7 @@ dependencies = [
 
 [[package]]
 name = "tinymist-query"
-version = "0.13.27"
+version = "0.13.29"
 dependencies = [
  "anyhow",
  "base64",
@@ -4974,7 +4974,7 @@ dependencies = [
 
 [[package]]
 name = "tinymist-render"
-version = "0.13.27"
+version = "0.13.29"
 dependencies = [
  "base64",
  "log",
@@ -5058,7 +5058,7 @@ dependencies = [
 
 [[package]]
 name = "tinymist-tests"
-version = "0.13.27"
+version = "0.13.29"
 dependencies = [
  "comemo",
  "insta",
@@ -5428,7 +5428,7 @@ checksum = "1dccffe3ce07af9386bfd29e80c0ab1a8205a2fc34e4bcd40364df902cfa8f3f"
 
 [[package]]
 name = "typlite"
-version = "0.13.27"
+version = "0.13.29"
 dependencies = [
  "base64",
  "clap",
