@@ -9,6 +9,12 @@ The changelog lines unspecified with authors are all written by the @Myriad-Drea
 - [CHANGELOG-2025.md](https://github.com/Myriad-Dreamin/tinymist/blob/main/editors/vscode/CHANGELOG.md)
 - [CHANGELOG-2024.md](https://github.com/Myriad-Dreamin/tinymist/blob/main/CHANGELOG/CHANGELOG-2024.md)
 
+## v0.13.35-rc1 - [2025-10-08]
+
+Nightly Release at [docs: continue improve project model docs (#2012)](https://github.com/Myriad-Dreamin/tinymist/commit/12c1a0abf867943a9b472ecc5d08defaf3a5a5fa), using [ParaN3xus/typst rev d1166fb](https://github.com/ParaN3xus/typst/commit/d1166fb85ed91741fe29989c483d9d4ace08da76), a.k.a. [typst/typst Fix bug with table/grid cells that are used internally or are artifacts (#7055)](https://github.com/typst/typst/commit/0692270b93460b0697284570fb4d6f22140c710a).
+
+**Full Changelog**: https://github.com/Myriad-Dreamin/tinymist/compare/v0.13.33...v0.13.35-rc1
+
 ## v0.13.33 - [2025-10-03]
 
 Nightly Release at [docs: continue improve project model docs (#2012)](https://github.com/Myriad-Dreamin/tinymist/commit/12c1a0abf867943a9b472ecc5d08defaf3a5a5fa), using [ParaN3xus/typst rev 575b4b7](https://github.com/ParaN3xus/typst/commit/575b4b779c29bffc439513491ffbeb4ed917bcc7), a.k.a. [typst/typst Align multi-line error messages](https://github.com/typst/typst/commit/b14c08e97a50178617c4ed46eb01445475ac6ac6).
