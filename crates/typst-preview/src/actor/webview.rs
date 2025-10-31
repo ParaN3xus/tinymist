@@ -4,7 +4,7 @@ use std::{task::Context, task::Poll};
 
 #[cfg(feature = "web")]
 use base64::{Engine, engine::general_purpose};
-use futures::{SinkExt, StreamExt, lock::Mutex};
+use futures::{SinkExt, lock::Mutex};
 use reflexo_typst::debug_loc::{DocumentPosition, ElementPoint};
 #[cfg(feature = "web")]
 use sync_ls::{PreviewMessageContent, PreviewNotificationParams};
@@ -62,7 +62,7 @@ impl PreviewMessageWsMessageTransition for PreviewMessageContent {
             PreviewMessageContent::Text { data } => WsMessage::Text(data),
             PreviewMessageContent::Binary { data } => {
                 let bytes = general_purpose::STANDARD.decode(data).unwrap_or_default();
-                WsMessage::Binary(bytes)
+                WsMessage::Binary(bytes.into())
             }
         }
     }

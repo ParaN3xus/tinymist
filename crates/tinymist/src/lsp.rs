@@ -229,7 +229,7 @@ impl ServerState {
                         use base64::{engine::general_purpose, Engine};
 
                         let bytes = general_purpose::STANDARD.decode(data).unwrap_or_default();
-                        WsMessage::Binary(bytes)
+                        WsMessage::Binary(bytes.into())
                     }
                 };
                 match tx.send(ws_message) {

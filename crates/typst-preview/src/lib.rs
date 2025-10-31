@@ -25,7 +25,6 @@ use std::sync::{Arc, OnceLock};
 use std::{collections::HashMap, future::Future, path::PathBuf, pin::Pin};
 
 use bytes::Bytes;
-use futures::StreamExt;
 use futures::lock::Mutex;
 use futures::sink::SinkExt;
 use reflexo_typst::Error;
