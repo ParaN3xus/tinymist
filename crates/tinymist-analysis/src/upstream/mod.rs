@@ -17,6 +17,7 @@ use typst::{
     introspection::MetadataElem,
     syntax::Span,
     text::{FontInfo, FontStyle},
+    utils::Protected,
 };
 
 /// Extract the first sentence of plain text of a piece of documentation.
@@ -459,7 +460,7 @@ pub fn with_vm<T>(
         routines: &typst::ROUTINES,
         world,
         route: Route::default(),
-        introspector: introspector.track(),
+        introspector: Protected::new(introspector.track()),
         traced: traced.track(),
         sink: sink.track_mut(),
     };

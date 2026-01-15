@@ -15,6 +15,7 @@
 //       });
 
 pub use tinymist_debug::BreakpointKind;
+use typst::utils::Protected;
 
 use std::sync::{Arc, mpsc};
 
@@ -126,7 +127,7 @@ fn step_global(kind: BreakpointKind, world: &dyn World) {
     let engine = Engine {
         routines: &typst::ROUTINES,
         world: world.track(),
-        introspector: introspector.track(),
+        introspector: Protected::new(introspector.track()),
         traced: traced.track(),
         sink: sink.track_mut(),
         route,

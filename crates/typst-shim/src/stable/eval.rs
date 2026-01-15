@@ -8,6 +8,7 @@ use typst::foundations::{Context, Func, Module, Value};
 use typst::introspection::Introspector;
 use typst::syntax::Source;
 
+use typst::utils::Protected;
 pub use typst_eval::*;
 
 /// Evaluates a source file and return the resulting module.
@@ -62,7 +63,7 @@ impl<'a> TypstEngine<'a> {
         Engine {
             routines: &typst::ROUTINES,
             world: self.world.track(),
-            introspector: self.introspector.track(),
+            introspector: Protected::new(self.introspector.track()),
             traced: self.traced.track(),
             sink: self.sink.track_mut(),
             route: self.route.clone(),

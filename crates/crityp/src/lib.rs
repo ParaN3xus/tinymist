@@ -21,6 +21,7 @@ use typst::World;
 use typst::engine::{Engine, Route, Sink, Traced};
 use typst::foundations::{Context, Func, Value};
 use typst::introspection::Introspector;
+use typst::utils::Protected;
 
 /// Runs benchmarks on the given world. An entry point must be provided in the
 /// world.
@@ -57,7 +58,7 @@ pub fn bench(c: &mut Criterion, world: &mut LspWorld) -> anyhow::Result<()> {
         let engine = &mut Engine {
             routines: &typst::ROUTINES,
             world: ((world) as &dyn World).track(),
-            introspector: introspector.track(),
+            introspector: Protected::new(introspector.track()),
             traced: traced.track(),
             sink: sink.track_mut(),
             route,

@@ -9,6 +9,7 @@ use typst::foundations::{Context, Label, Scopes, Styles, Value};
 use typst::introspection::Introspector;
 use typst::model::BibliographyElem;
 use typst::syntax::{LinkedNode, Span, SyntaxKind, SyntaxNode, ast};
+use typst::utils::Protected;
 use typst_shim::eval::Vm;
 use typst_shim::is_syntax_only;
 
@@ -82,7 +83,7 @@ pub fn analyze_import_(world: &dyn World, source: &SyntaxNode) -> (Option<Value>
         routines: &typst::ROUTINES,
         world: world.track(),
         route: Route::default(),
-        introspector: introspector.track(),
+        introspector: Protected::new(introspector.track()),
         traced: traced.track(),
         sink: sink.track_mut(),
     };
