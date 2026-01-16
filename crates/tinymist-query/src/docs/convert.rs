@@ -11,8 +11,8 @@ use tinymist_world::{
 use typlite::{Format, TypliteFeat};
 use typst::World;
 use typst::diag::StrResult;
-use typst::foundations::Bytes;
-use typst::syntax::FileId;
+use typst::foundations::{Bytes, PathOrStr};
+use typst::syntax::{FileId, VirtualRoot};
 
 use crate::analysis::SharedContext;
 
@@ -26,7 +26,12 @@ pub(crate) fn convert_docs(
         let root = ctx
             .world()
             .vfs()
-            .file_path(fid.join("/"))
+            .file_path(
+                PathOrStr::Str("/".into())
+                    .resolve(fid)
+                    .expect("failed to resolve path")
+                    .intern(),
+            )
             .ok()
             .and_then(|e| e.to_err().ok());
         if let Some(root) = root {
@@ -35,7 +40,7 @@ pub(crate) fn convert_docs(
 
         let mut imports = Vec::new();
         if WorkspaceResolver::is_package_file(fid)
-            && let Some(pkg) = fid.package()
+            && let VirtualRoot::Package(pkg) = fid.root()
         {
             let pkg_spec = pkg.to_string();
             imports.push(format!("#import {pkg_spec:?}"));
@@ -43,7 +48,7 @@ pub(crate) fn convert_docs(
         }
         imports.push(format!(
             "#import {:?}: *",
-            unix_slash(fid.vpath().as_rooted_path())
+            unix_slash(Path::new(fid.vpath().get_with_slash()))
         ));
         imports.join("; ")
     });
@@ -56,7 +61,7 @@ pub(crate) fn convert_docs(
         ..Default::default()
     };
 
-    let entry = entry.select_in_workspace(Path::new("__tinymist_docs__.typ"));
+    let entry = entry.select_in_workspace("__tinymist_docs__.typ");
 
     let mut w = ctx.world().task(TaskInputs {
         entry: Some(entry),

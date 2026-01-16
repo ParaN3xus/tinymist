@@ -13,7 +13,7 @@ use tinymist_world::{CompilerFeat, CompilerWorld};
 use typst::diag::FileResult;
 use typst::foundations::func;
 use typst::syntax::ast::AstNode;
-use typst::syntax::{Source, Span, SyntaxNode, ast};
+use typst::syntax::{Source, Span, SyntaxNode, VirtualRoot, ast};
 use typst::{World, WorldExt};
 
 use crate::instrument::Instrumenter;
@@ -118,10 +118,16 @@ impl fmt::Display for SummarizedCoverage<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut ids = self.result.regions.keys().collect::<Vec<_>>();
         ids.sort_by(|a, b| {
-            a.package()
-                .map(crate::PackageSpecCmp::from)
-                .cmp(&b.package().map(crate::PackageSpecCmp::from))
-                .then_with(|| a.vpath().cmp(b.vpath()))
+            fn to_cmp(root: &VirtualRoot) -> Option<crate::PackageSpecCmp<'_>> {
+                match root {
+                    VirtualRoot::Package(p) => Some(crate::PackageSpecCmp::from(p)),
+                    VirtualRoot::Project => None,
+                }
+            }
+
+            to_cmp(a.root())
+                .cmp(&to_cmp(b.root()))
+                .then_with(|| a.vpath().get_with_slash().cmp(b.vpath().get_with_slash()))
         });
 
         let summary = ids

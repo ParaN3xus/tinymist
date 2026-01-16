@@ -198,7 +198,7 @@ mod tests {
                 let files = ctx
                     .source_files()
                     .iter()
-                    .filter(|id| !id.vpath().as_rootless_path().ends_with("lib.typ"));
+                    .filter(|id| !Path::new(id.vpath().get_with_slash()).ends_with("lib.typ"));
                 for id in files.copied().collect::<Vec<_>>() {
                     test(ctx, id);
                 }

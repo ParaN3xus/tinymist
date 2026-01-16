@@ -49,7 +49,9 @@ struct BibWorker {
 
 impl BibWorker {
     fn analyze_path(&mut self, file_id: TypstFileId, content: Bytes) -> Option<()> {
-        let file_extension = file_id.vpath().as_rooted_path().extension()?.to_str()?;
+        let file_extension = Path::new(file_id.vpath().get_with_slash())
+            .extension()?
+            .to_str()?;
         let content = std::str::from_utf8(&content).ok()?;
 
         // Reparse the content to get all entries
@@ -209,9 +211,8 @@ impl YamlBib {
 #[cfg(test)]
 mod tests {
     use core::fmt;
-    use std::path::Path;
 
-    use typst::syntax::{FileId, VirtualPath};
+    use typst::syntax::{FileId, RootedPath, VirtualPath, VirtualRoot};
 
     use crate::tests::*;
 
@@ -233,7 +234,10 @@ Euclid2:
 "#;
         let bib = super::YamlBib::from_content(
             content,
-            FileId::new_fake(VirtualPath::new(Path::new("test.yml"))),
+            FileId::unique(RootedPath::new(
+                VirtualRoot::Project,
+                VirtualPath::new("test.yml").unwrap(),
+            )),
         );
         assert_eq!(bib.entries.len(), 2);
         assert_snapshot!(bib_snap(&bib.entries[0]), @r###"("Euclid", BibEntry { file_id: /test.yml, name_range: 1..7, range: 1..63, raw_entry: None })"###);
@@ -248,7 +252,10 @@ Euclid:
   title: '{Elements, {V}ols.\ 1--13}'
 Euclid3
 "#;
-        let file_id = FileId::new_fake(VirtualPath::new(Path::new("test.yml")));
+        let file_id = FileId::unique(RootedPath::new(
+            VirtualRoot::Project,
+            VirtualPath::new("test.yml").unwrap(),
+        ));
         super::YamlBib::from_content(content, file_id);
     }
 }

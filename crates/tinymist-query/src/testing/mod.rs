@@ -1,5 +1,7 @@
 //! Extracts test suites from the document.
 
+use std::path::Path;
+
 use ecow::EcoString;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use tinymist_std::error::prelude::*;
@@ -88,7 +90,7 @@ pub struct TestCase {
 /// Extracts the test suites in the document
 pub fn test_suites(ctx: &mut LocalContext) -> Result<TestSuites> {
     let main_id = ctx.world().main();
-    let main_workspace = main_id.package();
+    let main_workspace = main_id.root();
 
     crate::log_debug_ct!(
         "test workspace: {:?}, files: {:?}",
@@ -98,7 +100,7 @@ pub fn test_suites(ctx: &mut LocalContext) -> Result<TestSuites> {
     let files = ctx
         .depended_source_files()
         .par_iter()
-        .filter(|fid| fid.package() == main_workspace)
+        .filter(|fid| fid.root() == main_workspace)
         .map(|fid| {
             let source = ctx
                 .source_by_id(*fid)
@@ -194,7 +196,8 @@ impl TestSuitesWorker<'_> {
 
     fn discover_tests(&mut self) -> Result<()> {
         for (source, module) in self.files.iter() {
-            let vpath = source.id().vpath().as_rooted_path();
+            let src_id = source.id();
+            let vpath = Path::new(src_id.vpath().get_with_slash());
             let file_name = vpath.file_name().and_then(|s| s.to_str()).unwrap_or("");
             if file_name.starts_with(self.config.example_pattern.as_str()) {
                 self.examples.push(source.clone());

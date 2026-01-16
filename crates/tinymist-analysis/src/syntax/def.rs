@@ -14,7 +14,7 @@ use tinymist_std::DefId;
 use tinymist_world::package::PackageSpec;
 use typst::{
     foundations::{Element, Func, Module, Type, Value},
-    syntax::{Span, SyntaxNode},
+    syntax::{Span, SyntaxNode, VirtualRoot},
     utils::LazyHash,
 };
 
@@ -146,11 +146,7 @@ impl ExprInfoRepr {
     #[allow(dead_code)]
     fn show(&self) {
         use std::io::Write;
-        let vpath = self
-            .fid
-            .vpath()
-            .resolve(Path::new("target/exprs/"))
-            .unwrap();
+        let vpath = self.fid.vpath().realize(Path::new("target/exprs/"));
         let root = vpath.with_extension("root.expr");
         std::fs::create_dir_all(root.parent().unwrap()).unwrap();
         std::fs::write(root, format!("{}", self.root)).unwrap();
@@ -533,7 +529,7 @@ impl Decl {
     /// Creates a module declaration with a file ID.
     pub fn module(fid: TypstFileId) -> Self {
         let name = {
-            let stem = fid.vpath().as_rooted_path().file_stem();
+            let stem = Path::new(fid.vpath().get_with_slash()).file_stem();
             stem.and_then(|s| Some(Interned::new_str(s.to_str()?)))
                 .unwrap_or_default()
         };
@@ -784,10 +780,18 @@ impl Decl {
 
 impl StrictCmp for TypstFileId {
     fn strict_cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.package()
-            .map(ToString::to_string)
-            .cmp(&other.package().map(ToString::to_string))
-            .then_with(|| self.vpath().cmp(other.vpath()))
+        let to_pkg_str = |r: &VirtualRoot| match r {
+            VirtualRoot::Package(p) => Some(p.to_string()),
+            VirtualRoot::Project => None,
+        };
+
+        to_pkg_str(self.root())
+            .cmp(&to_pkg_str(other.root()))
+            .then_with(|| {
+                self.vpath()
+                    .get_with_slash()
+                    .cmp(other.vpath().get_with_slash())
+            })
     }
 }
 impl<T: StrictCmp> StrictCmp for Option<T> {

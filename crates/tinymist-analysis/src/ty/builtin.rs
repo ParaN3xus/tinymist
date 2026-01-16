@@ -7,7 +7,7 @@ use regex::RegexSet;
 use strum::{EnumIter, IntoEnumIterator};
 use typst::foundations::{CastInfo, Regex};
 use typst::layout::Ratio;
-use typst::syntax::FileId;
+use typst::syntax::{FileId, VirtualRoot};
 use typst::{
     foundations::{AutoValue, Content, Func, NoneValue, ParamInfo, Type, Value},
     layout::Length,
@@ -225,7 +225,7 @@ impl TryFrom<FileId> for PackageId {
     type Error = ();
 
     fn try_from(value: FileId) -> Result<Self, Self::Error> {
-        let Some(spec) = value.package() else {
+        let VirtualRoot::Package(spec) = value.root() else {
             return Err(());
         };
         Ok(PackageId {

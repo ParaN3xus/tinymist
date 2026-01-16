@@ -1,6 +1,6 @@
 use core::fmt::Write;
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use ecow::{EcoString, EcoVec};
 use indexmap::IndexSet;
@@ -8,8 +8,9 @@ use serde::{Deserialize, Serialize};
 use tinymist_analysis::docs::tidy::remove_list_annotations;
 use tinymist_world::package::PackageSpec;
 use typst::diag::{StrResult, eco_format};
+use typst::foundations::PathOrStr;
 use typst::syntax::package::PackageManifest;
-use typst::syntax::{FileId, Span};
+use typst::syntax::{FileId, Span, VirtualRoot};
 
 use crate::LocalContext;
 use crate::docs::{DefDocs, PackageDefInfo, file_id_repr, module_docs};
@@ -41,8 +42,14 @@ pub fn package_docs(ctx: &mut LocalContext, spec: &PackageInfo) -> StrResult<Pac
     let toml_id = get_manifest_id(spec)?;
     let manifest = ctx.get_manifest(toml_id)?;
 
-    let for_spec = toml_id.package().unwrap();
-    let entry_point = toml_id.join(&manifest.package.entrypoint);
+    let for_spec = match toml_id.root() {
+        VirtualRoot::Project => panic!("invalid package"),
+        VirtualRoot::Package(p) => p,
+    };
+    let entry_point = PathOrStr::Str(manifest.package.entrypoint.into())
+        .resolve(toml_id)
+        .expect("failed to resolve path")
+        .intern();
 
     ctx.preload_package(entry_point);
 
@@ -133,7 +140,7 @@ pub fn package_docs(ctx: &mut LocalContext, spec: &PackageInfo) -> StrResult<Pac
                 if child.is_external
                     && let Some(fid) = child_fid
                 {
-                    let lnk = if fid.package() == Some(for_spec) {
+                    let lnk = if *fid.root() == VirtualRoot::Package(for_spec.clone()) {
                         let sub_aka = akas(fid);
                         let sub_primary = sub_aka.first().cloned().unwrap_or_default();
                         child.external_link = Some(format!(
@@ -141,7 +148,7 @@ pub fn package_docs(ctx: &mut LocalContext, spec: &PackageInfo) -> StrResult<Pac
                             child.kind, child.name
                         ));
                         format!("#{}-{}-in-{sub_primary}", child.kind, child.name).replace(".", "")
-                    } else if let Some(spec) = fid.package() {
+                    } else if let VirtualRoot::Package(spec) = fid.root() {
                         let lnk = format!(
                             "https://typst.app/universe/package/{}/{}",
                             spec.name, spec.version
@@ -191,13 +198,14 @@ pub fn package_docs(ctx: &mut LocalContext, spec: &PackageInfo) -> StrResult<Pac
     let files = file_ids
         .into_iter()
         .map(|fid| {
-            let pkg = fid
-                .package()
-                .map(|spec| packages.insert_full(spec.clone()).0);
+            let pkg = match fid.root() {
+                VirtualRoot::Package(spec) => Some(packages.insert_full(spec.clone()).0),
+                VirtualRoot::Project => None,
+            };
 
             FileMeta {
                 package: pkg,
-                path: fid.vpath().as_rootless_path().to_owned(),
+                path: Path::new(fid.vpath().get_without_slash()).to_owned(),
             }
         })
         .collect();

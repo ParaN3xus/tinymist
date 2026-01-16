@@ -6,8 +6,9 @@ use std::path::{Path, PathBuf};
 use reflexo_typst::{Bytes, ImmutPath, TypstFileId};
 use tinymist_query::package::get_manifest;
 use typst::diag::{bail, eco_format, FileError, FileResult, StrResult};
+use typst::foundations::PathOrStr;
 use typst::syntax::package::{PackageSpec, TemplateInfo};
-use typst::syntax::VirtualPath;
+use typst::syntax::{RootedPath, VirtualPath, VirtualRoot};
 use typst::World;
 
 use crate::project::LspWorld;
@@ -31,7 +32,11 @@ pub struct InitTask {
 pub fn get_entry(world: &LspWorld, tmpl: TemplateSource) -> StrResult<Bytes> {
     let TemplateSource::Package(spec) = tmpl;
 
-    let toml_id = TypstFileId::new(Some(spec.clone()), VirtualPath::new("typst.toml"));
+    let toml_id = RootedPath::new(
+        VirtualRoot::Package(spec.clone()),
+        VirtualPath::new("typst.toml").unwrap(),
+    )
+    .intern();
     let manifest = get_manifest(world, toml_id)?;
 
     // Ensure that it is indeed a template.
@@ -39,9 +44,15 @@ pub fn get_entry(world: &LspWorld, tmpl: TemplateSource) -> StrResult<Bytes> {
         bail!("package {spec} is not a template");
     };
 
-    let entry_point = toml_id
-        .join(&(tmpl_info.path.to_string() + "/main.typ"))
-        .join(&tmpl_info.entrypoint);
+    let entry_point = PathOrStr::Str(tmpl_info.entrypoint.clone().into())
+        .resolve(
+            PathOrStr::Str((tmpl_info.path.to_string() + "/main.typ").into())
+                .resolve(toml_id)
+                .expect("failed to resolve")
+                .intern(),
+        )
+        .expect("failed to resolve")
+        .intern();
 
     world.file(entry_point).map_err(|e| eco_format!("{e}"))
 }
@@ -53,7 +64,11 @@ pub fn init(world: &LspWorld, task: InitTask) -> StrResult<PathBuf> {
         .dir
         .unwrap_or_else(|| Path::new(spec.name.as_str()).into());
 
-    let toml_id = TypstFileId::new(Some(spec.clone()), VirtualPath::new("typst.toml"));
+    let toml_id = RootedPath::new(
+        VirtualRoot::Package(spec.clone()),
+        VirtualPath::new("typst.toml").unwrap(),
+    )
+    .intern();
     let manifest = get_manifest(world, toml_id)?;
 
     // Ensure that it is indeed a template.
@@ -105,7 +120,10 @@ fn scaffold_project(
         .parent()
         .ok_or_else(|| eco_format!("package root is not a directory (at {:?})", toml_id))?;
 
-    let template_dir = toml_id.join(tmpl_info.path.as_str());
+    let template_dir = PathOrStr::Str(tmpl_info.path.clone().into())
+        .resolve(toml_id)
+        .expect("failed to resolve path")
+        .intern();
     // todo: template in memory
     let real_template_dir = world.path_for_id(template_dir)?.to_err()?;
     if !real_template_dir.exists() {
@@ -115,13 +133,13 @@ fn scaffold_project(
         );
     }
 
-    let files = scan_package_files(toml_id.package().cloned(), package_root, &real_template_dir)?;
+    let files = scan_package_files(toml_id.root().clone(), package_root, &real_template_dir)?;
 
     // res.insert(id, world.file(id)?);
     for id in files {
         let f = world.file(id)?;
-        let template_dir = template_dir.vpath().as_rooted_path();
-        let file_path = id.vpath().as_rooted_path();
+        let template_dir = template_dir.vpath().get_with_slash();
+        let file_path = Path::new(id.vpath().get_with_slash());
         let relative_path = file_path.strip_prefix(template_dir).map_err(|err| {
             eco_format!(
                 "failed to strip prefix, path: {file_path:?}, root: {template_dir:?}: {err}"
@@ -140,7 +158,7 @@ fn scaffold_project(
 }
 
 fn scan_package_files(
-    package: Option<PackageSpec>,
+    package: VirtualRoot,
     root: &Path,
     tmpl_root: &Path,
 ) -> FileResult<Vec<TypstFileId>> {
@@ -165,7 +183,12 @@ fn scan_package_files(
             }
         };
 
-        let id = TypstFileId::new(package.clone(), VirtualPath::new(relative_path));
+        let id = RootedPath::new(
+            package.clone(),
+            VirtualPath::new(relative_path.to_str().expect("invalid path"))
+                .expect("invalid virtual path"),
+        )
+        .intern();
         res.push(id);
     }
 

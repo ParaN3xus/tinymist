@@ -25,10 +25,10 @@ use tinymist_std::error::prelude::*;
 use typst::World;
 use typst::WorldExt;
 use typst::diag::SourceDiagnostic;
-use typst::foundations::Bytes;
+use typst::foundations::{Bytes, PathOrStr};
 use typst_html::HtmlDocument;
-use typst_syntax::Span;
 use typst_syntax::VirtualPath;
+use typst_syntax::{RootedPath, Span, VirtualRoot};
 
 pub use crate::common::Format;
 use crate::diagnostics::WarningCollector;
@@ -289,12 +289,18 @@ impl TypliteFeat {
             bail!("package file is not supported");
         }
 
-        let wrap_main_id = current.join("__wrap_md_main.typ");
+        let wrap_main_id = PathOrStr::Str("__wrap_md_main.typ".into())
+            .resolve(current)
+            .expect("failed to resolve path")
+            .intern();
 
         let (main_id, main_content) = match self.processor.as_ref() {
             None => (wrap_main_id, None),
             Some(processor) => {
-                let main_id = current.join("__md_main.typ");
+                let main_id = PathOrStr::Str("__md_main.typ".into())
+                    .resolve(current)
+                    .expect("failed to resolve path")
+                    .intern();
                 let content = format!(
                     r#"#import {processor:?}: article
 #article(include "__wrap_md_main.typ")"#
@@ -314,23 +320,27 @@ impl TypliteFeat {
         }
 
         let task_inputs = TaskInputs {
-            entry: Some(entry.select_in_workspace(main_id.vpath().as_rooted_path())),
+            entry: Some(entry.select_in_workspace(main_id.vpath().get_with_slash())),
             inputs: Some(Arc::new(LazyHash::new(dict))),
         };
 
         let mut world = world.task(task_inputs).html_task().into_owned();
 
-        let markdown_id = FileId::new(
-            Some(
+        let markdown_id = RootedPath::new(
+            VirtualRoot::Package(
                 typst_syntax::package::PackageSpec::from_str("@local/_markdown:0.1.0")
                     .context_ut("failed to import markdown package")?,
             ),
-            VirtualPath::new("lib.typ"),
-        );
+            VirtualPath::new("lib.typ").unwrap(),
+        )
+        .intern();
 
         world
             .map_shadow_by_id(
-                markdown_id.join("typst.toml"),
+                PathOrStr::Str("typst.toml".into())
+                    .resolve(markdown_id)
+                    .expect("failed to resolve path")
+                    .intern(),
                 Bytes::from_string(include_str!("markdown-typst.toml")),
             )
             .context_ut("cannot map markdown-typst.toml")?;

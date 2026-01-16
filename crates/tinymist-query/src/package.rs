@@ -11,8 +11,9 @@ use tinymist_world::package::PackageSpec;
 use tinymist_world::package::registry::PackageIndexEntry;
 use typst::World;
 use typst::diag::{EcoString, StrResult};
+use typst::foundations::PathOrStr;
 use typst::syntax::package::PackageManifest;
-use typst::syntax::{FileId, VirtualPath};
+use typst::syntax::{FileId, RootedPath, VirtualPath, VirtualRoot};
 
 use crate::LocalContext;
 
@@ -43,14 +44,15 @@ impl From<PackageIndexEntry> for PackageInfo {
 
 /// Parses the manifest of the package located at `package_path`.
 pub fn get_manifest_id(spec: &PackageInfo) -> StrResult<FileId> {
-    Ok(FileId::new(
-        Some(PackageSpec {
+    Ok(RootedPath::new(
+        VirtualRoot::Package(PackageSpec {
             namespace: spec.namespace.clone(),
             name: spec.name.clone(),
             version: spec.version.parse()?,
         }),
-        VirtualPath::new("typst.toml"),
-    ))
+        VirtualPath::new("typst.toml").unwrap(),
+    )
+    .intern())
 }
 
 /// Parses the manifest of the package located at `package_path`.
@@ -71,7 +73,10 @@ pub fn check_package(ctx: &mut LocalContext, spec: &PackageInfo) -> StrResult<()
     let toml_id = get_manifest_id(spec)?;
     let manifest = ctx.get_manifest(toml_id)?;
 
-    let entry_point = toml_id.join(&manifest.package.entrypoint);
+    let entry_point = PathOrStr::Str(manifest.package.entrypoint.into())
+        .resolve(toml_id)
+        .expect("failed to resolve path")
+        .intern();
 
     ctx.shared_().preload_package(entry_point);
     Ok(())
@@ -168,10 +173,11 @@ pub fn list_package(
                     name: package_name.clone(),
                     version,
                 };
-                let manifest_id = typst::syntax::FileId::new(
-                    Some(spec.clone()),
-                    typst::syntax::VirtualPath::new("typst.toml"),
-                );
+                let manifest_id = typst::syntax::RootedPath::new(
+                    VirtualRoot::Package(spec.clone()),
+                    typst::syntax::VirtualPath::new("typst.toml").unwrap(),
+                )
+                .intern();
                 let Some(manifest) =
                     once_log(get_manifest(world, manifest_id), "read package manifest")
                 else {

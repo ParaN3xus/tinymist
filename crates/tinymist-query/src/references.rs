@@ -184,8 +184,7 @@ impl ReferencesWorker<'_> {
                 .decl
                 .file_id()
                 .and_then(|fid| {
-                    fid.vpath()
-                        .as_rooted_path()
+                    Path::new(fid.vpath().get_with_slash())
                         .file_name()?
                         .to_str()
                         .map(From::from)

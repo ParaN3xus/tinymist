@@ -356,7 +356,11 @@ impl LocalContext {
             .get_or_init(|| {
                 if let Some(root) = self.world().entry_state().workspace_root() {
                     scan_workspace_files(&root, PathKind::Special.ext_matcher(), |path| {
-                        WorkspaceResolver::workspace_file(Some(&root), VirtualPath::new(path))
+                        WorkspaceResolver::workspace_file(
+                            Some(&root),
+                            VirtualPath::new(path.to_str().expect("invalid path"))
+                                .expect("invalid virtual path"),
+                        )
                     })
                 } else {
                     vec![]
@@ -364,8 +368,7 @@ impl LocalContext {
             })
             .iter()
             .filter(move |fid| {
-                fid.vpath()
-                    .as_rooted_path()
+                Path::new(fid.vpath().get_with_slash())
                     .extension()
                     .and_then(|path| path.to_str())
                     .is_some_and(|path| regexes.is_match(path))
@@ -401,7 +404,7 @@ impl LocalContext {
         let preference = PathKind::Source {
             allow_package: false,
         };
-        ids.retain(|id| preference.is_match(id.vpath().as_rooted_path()));
+        ids.retain(|id| preference.is_match(Path::new(id.vpath().get_with_slash())));
         ids
     }
 
@@ -600,9 +603,7 @@ impl SharedContext {
 
     /// Converts a Typst range to an LSP range.
     pub fn to_lsp_range_(&self, position: Range<usize>, fid: TypstFileId) -> Option<LspRange> {
-        let ext = fid
-            .vpath()
-            .as_rootless_path()
+        let ext = Path::new(fid.vpath().get_without_slash())
             .extension()
             .and_then(|ext| ext.to_str());
         // yaml/yml/bib

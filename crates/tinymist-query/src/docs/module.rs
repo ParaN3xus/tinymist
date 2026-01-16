@@ -6,8 +6,8 @@ use ecow::{EcoString, EcoVec, eco_vec};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use typst::diag::StrResult;
-use typst::syntax::FileId;
-use typst::syntax::package::PackageSpec;
+use typst::foundations::PathOrStr;
+use typst::syntax::{FileId, VirtualRoot};
 
 use crate::LocalContext;
 use crate::adt::interner::Interned;
@@ -22,7 +22,10 @@ pub fn package_module_docs(ctx: &mut LocalContext, pkg: &PackageInfo) -> StrResu
     let toml_id = get_manifest_id(pkg)?;
     let manifest = ctx.get_manifest(toml_id)?;
 
-    let entry_point = toml_id.join(&manifest.package.entrypoint);
+    let entry_point = PathOrStr::Str(manifest.package.entrypoint.into())
+        .resolve(toml_id)
+        .expect("failed to resolve path")
+        .intern();
     module_docs(ctx, entry_point)
 }
 
@@ -34,7 +37,7 @@ pub fn module_docs(ctx: &mut LocalContext, entry_point: FileId) -> StrResult<Pac
     let mut scan_ctx = ScanDefCtx {
         ctx,
         root: entry_point,
-        for_spec: entry_point.package(),
+        for_spec: entry_point.root(),
         aliases: &mut aliases,
         extras: &mut extras,
     };
@@ -111,7 +114,7 @@ pub struct PackageDefInfo {
 
 struct ScanDefCtx<'a> {
     ctx: &'a mut LocalContext,
-    for_spec: Option<&'a PackageSpec>,
+    for_spec: &'a VirtualRoot,
     aliases: &'a mut HashMap<FileId, Vec<String>>,
     extras: &'a mut Vec<DefInfo>,
     root: FileId,
@@ -175,7 +178,7 @@ impl ScanDefCtx<'_> {
         let children = match decl.as_ref() {
             Decl::Module(..) => decl.file_id().and_then(|fid| {
                 // only generate docs for the same package
-                if fid.package() != self.for_spec {
+                if fid.root() != self.for_spec {
                     return None;
                 }
 
@@ -235,7 +238,7 @@ impl ScanDefCtx<'_> {
         // Insert module that is not exported
         if let Some(fid) = head.decl.as_ref().and_then(|del| del.file_id()) {
             // only generate docs for the same package
-            if fid.package() == self.for_spec {
+            if fid.root() == self.for_spec {
                 let av = self.aliases.entry(fid).or_default();
                 if av.is_empty() {
                     let src = self.ctx.expr_stage_by_id(fid);

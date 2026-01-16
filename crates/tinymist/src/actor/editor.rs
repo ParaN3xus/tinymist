@@ -2,6 +2,7 @@
 //! compile status.
 
 use std::collections::HashMap;
+use std::path::Path;
 
 use lsp_types::notification::{Notification, PublishDiagnostics as PublishDiagnosticsBase};
 use lsp_types::{Diagnostic, Url};
@@ -115,7 +116,7 @@ impl EditorActor {
 
                     self.status.path = compile_status
                         .compiling_id
-                        .map(|fid| unix_slash(fid.vpath().as_rooted_path()))
+                        .map(|fid| unix_slash(Path::new(fid.vpath().get_with_slash())))
                         .unwrap_or_default();
                     self.status.page_count = compile_status.page_count;
                     self.status.status = match &compile_status.status {

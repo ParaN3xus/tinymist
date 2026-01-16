@@ -1,5 +1,10 @@
 //! Import resolution utilities.
 
+use typst::{
+    foundations::PathOrStr,
+    syntax::{RootedPath, VirtualRoot},
+};
+
 use crate::prelude::*;
 
 /// Resolves a file id by its import path.
@@ -11,24 +16,32 @@ pub fn resolve_id_by_path(
     if import_path.starts_with('@') {
         let spec = import_path.parse::<PackageSpec>().ok()?;
         // Evaluates the manifest.
-        let manifest_id = TypstFileId::new(Some(spec.clone()), VirtualPath::new("typst.toml"));
+        let manifest_id = RootedPath::new(
+            VirtualRoot::Package(spec.clone()),
+            VirtualPath::new("typst.toml").unwrap(),
+        )
+        .intern();
         let bytes = world.file(manifest_id).ok()?;
         let string = std::str::from_utf8(&bytes).map_err(FileError::from).ok()?;
         let manifest: PackageManifest = toml::from_str(string).ok()?;
         manifest.validate(&spec).ok()?;
 
         // Evaluates the entry point.
-        return Some(manifest_id.join(&manifest.package.entrypoint));
+        return PathOrStr::Str(manifest.package.entrypoint.into())
+            .resolve(manifest_id)
+            .map(RootedPath::intern)
+            .ok();
     }
 
     let path = Path::new(import_path);
     let vpath = if path.is_relative() {
-        current.vpath().join(path)
+        current.vpath().join(import_path)
     } else {
-        VirtualPath::new(path)
-    };
+        VirtualPath::new(import_path)
+    }
+    .expect("invalid virtual path");
 
-    Some(TypstFileId::new(current.package().cloned(), vpath))
+    Some(RootedPath::new(current.root().clone(), vpath).intern())
 }
 
 /// Finds a source instance by its import node.

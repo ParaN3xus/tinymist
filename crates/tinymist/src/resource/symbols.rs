@@ -1,5 +1,4 @@
 use std::sync::LazyLock;
-use std::{path::Path, sync::Arc};
 
 use reflexo_typst::TypstPagedDocument;
 use reflexo_typst::{vector::font::GlyphId, TypstFont};
@@ -223,9 +222,8 @@ fn render_symbols(
     });
     log::debug!("math shaping text: {math_shaping_text}");
 
-    let entry_path: Arc<Path> = Path::new("/._sym_.typ").into();
-
-    let new_entry = EntryState::new_rootless(VirtualPath::new(&entry_path));
+    let new_entry =
+        EntryState::new_rootless(VirtualPath::new("/._sym_.typ").expect("invalid virtual path"));
 
     let mut forked = snap.world().task(TaskInputs {
         entry: Some(new_entry),

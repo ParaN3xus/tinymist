@@ -98,7 +98,15 @@ pub fn run_with_sources<T>(source: &str, f: impl FnOnce(&mut LspUniverse, PathBu
     verse
         .mutate_entry(EntryState::new_rooted(
             root.as_path().into(),
-            Some(VirtualPath::new(pw.strip_prefix(root).unwrap())),
+            Some(
+                VirtualPath::new(
+                    pw.strip_prefix(root)
+                        .unwrap()
+                        .to_str()
+                        .expect("invalid path"),
+                )
+                .expect("invalid virtual path"),
+            ),
         ))
         .unwrap();
     f(&mut verse, pw)

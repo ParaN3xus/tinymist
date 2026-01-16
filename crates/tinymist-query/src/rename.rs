@@ -144,9 +144,7 @@ pub(crate) fn do_rename_file(
     diff: PathBuf,
     edits: &mut HashMap<Url, Vec<TextEdit>>,
 ) -> Option<()> {
-    let def_path = def_fid
-        .vpath()
-        .as_rooted_path()
+    let def_path = Path::new(def_fid.vpath().get_with_slash())
         .file_name()
         .unwrap_or_default()
         .to_str()

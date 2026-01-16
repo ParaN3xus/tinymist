@@ -238,7 +238,7 @@ impl DiagnosticRefiner for OutOfRootHintRefiner {
             && raw
                 .hints
                 .iter()
-                .any(|hint| hint.contains("cannot read file outside of project root"))
+                .any(|hint| hint.v.contains("cannot read file outside of project root"))
     }
 
     fn refine(&self, mut raw: TypstDiagnostic) -> TypstDiagnostic {

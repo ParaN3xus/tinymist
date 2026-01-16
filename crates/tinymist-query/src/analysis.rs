@@ -41,7 +41,7 @@ use tinymist_std::error::WithContextUntyped;
 use tinymist_std::{Result, bail};
 use tinymist_world::{EntryReader, EntryState, TaskInputs};
 use typst::diag::{FileError, FileResult, StrResult};
-use typst::foundations::{Func, Value};
+use typst::foundations::{Func, PathOrStr, Value};
 use typst::syntax::FileId;
 
 use crate::{CompilerQueryResponse, SemanticRequest, path_res_to_url};
@@ -137,7 +137,10 @@ impl LspQuerySnapshot {
                 .ok_or_else(|| eco_format!("cannot get package root (parent of {toml_path:?})"))?;
 
             let manifest = crate::package::get_manifest(world, toml_id)?;
-            let entry_point = toml_id.join(&manifest.package.entrypoint);
+            let entry_point = PathOrStr::Str(manifest.package.entrypoint.into())
+                .resolve(toml_id)
+                .expect("failed to resolve path")
+                .intern();
 
             Ok(EntryState::new_rooted_by_id(pkg_root.into(), entry_point))
         });
@@ -183,9 +186,11 @@ mod matcher_tests {
 #[cfg(test)]
 mod expr_tests {
 
+    use std::path::Path;
+
     use tinymist_std::path::unix_slash;
     use tinymist_world::vfs::WorkspaceResolver;
-    use typst::syntax::Source;
+    use typst::syntax::{Source, VirtualRoot};
 
     use crate::syntax::{Expr, RefExpr};
     use crate::tests::*;
@@ -200,12 +205,16 @@ mod expr_tests {
                 Expr::Decl(decl) => {
                     let range = self.range(decl.span()).unwrap_or_default();
                     let fid = if let Some(fid) = decl.file_id() {
-                        let vpath = fid.vpath().as_rooted_path();
-                        match fid.package() {
-                            Some(package) if WorkspaceResolver::is_package_file(fid) => {
+                        let vpath = Path::new(fid.vpath().get_with_slash());
+                        match fid.root() {
+                            VirtualRoot::Package(package)
+                                if WorkspaceResolver::is_package_file(fid) =>
+                            {
                                 format!(" in {package:?}{}", unix_slash(vpath))
                             }
-                            Some(_) | None => format!(" in {}", unix_slash(vpath)),
+                            VirtualRoot::Package(_) | VirtualRoot::Project => {
+                                format!(" in {}", unix_slash(vpath))
+                            }
                         }
                     } else {
                         "".to_string()
@@ -310,7 +319,7 @@ mod module_tests {
             fn ids(ids: EcoVec<FileId>) -> Vec<String> {
                 let mut ids: Vec<String> = ids
                     .into_iter()
-                    .map(|id| unix_slash(id.vpath().as_rooted_path()))
+                    .map(|id| unix_slash(Path::new(id.vpath().get_with_slash())))
                     .collect();
                 ids.sort();
                 ids
@@ -322,7 +331,7 @@ mod module_tests {
                 .into_iter()
                 .map(|(id, v)| {
                     (
-                        unix_slash(id.vpath().as_rooted_path()),
+                        unix_slash(Path::new(id.vpath().get_with_slash())),
                         ids(v.dependencies),
                         ids(v.dependents),
                     )
