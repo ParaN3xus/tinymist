@@ -487,7 +487,7 @@ impl TypeChecker<'_> {
                 Value::Str(..) => text_type(),
                 Value::Content(c) => Ty::Builtin(BuiltinTy::Content(Some(c.elem()))),
                 Value::Func(f) => {
-                    if let Some(elem) = f.element() {
+                    if let Some(elem) = f.to_element() {
                         Ty::Builtin(BuiltinTy::Content(Some(elem)))
                     } else {
                         return None;
