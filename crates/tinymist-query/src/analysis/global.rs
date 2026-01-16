@@ -22,12 +22,14 @@ use tinymist_world::package::registry::PackageIndexEntry;
 use tinymist_world::vfs::{PathResolution, WorkspaceResolver};
 use tinymist_world::{DETACHED_ENTRY, EntryReader};
 use typst::diag::{At, FileError, FileResult, SourceDiagnostic, SourceResult, StrResult};
+use typst::engine::{Engine, Route, Sink, Traced};
 use typst::foundations::{Bytes, IntoValue, Module, StyleChain, Styles};
 use typst::introspection::Introspector;
 use typst::layout::Position;
 use typst::model::BibliographyElem;
 use typst::syntax::package::PackageManifest;
 use typst::syntax::{Span, VirtualPath};
+use typst::utils::Protected;
 use typst_shim::eval::{Eval, eval_compat};
 
 use super::{LspQuerySnapshot, TypeEnv};
@@ -1448,7 +1450,17 @@ fn analyze_bib(
     world: Tracked<dyn World + '_>,
     introspector: Tracked<Introspector>,
 ) -> Option<Arc<BibInfo>> {
-    let bib_elem = BibliographyElem::find(introspector).ok()?;
+    let traced = Traced::default();
+    let mut sink = Sink::new();
+    let mut engine = Engine {
+        routines: &typst::ROUTINES,
+        world,
+        route: Route::default(),
+        introspector: Protected::new(introspector),
+        traced: traced.track(),
+        sink: sink.track_mut(),
+    };
+    let bib_elem = BibliographyElem::find(&mut engine, Span::detached()).ok()?;
 
     // todo: it doesn't respect the style chain which can be get from
     // `analyze_expr`
