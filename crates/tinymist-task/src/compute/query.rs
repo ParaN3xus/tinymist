@@ -10,7 +10,9 @@ use tinymist_world::{CompilerFeat, ExportComputation, WorldComputeGraph};
 use typst::World;
 use typst::diag::{SourceResult, StrResult};
 use typst::engine::Sink;
-use typst::foundations::{Content, IntoValue, LocatableSelector, Scope, Value};
+use typst::foundations::{
+    Content, Context, IntoValue, LocatableSelector, Scope, StyleChain, Value,
+};
 use typst::syntax::Span;
 use typst::syntax::SyntaxMode;
 use typst_eval::eval_string;
@@ -32,6 +34,8 @@ impl DocumentQuery {
             &typst::ROUTINES,
             world.track(),
             Sink::new().track_mut(),
+            document.introspector().track(),
+            Context::new(None, Some(StyleChain::new(&world.library().styles))).track(),
             selector,
             Span::detached(),
             SyntaxMode::Code,

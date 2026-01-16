@@ -9,7 +9,8 @@ use sync_ls::{internal_error, invalid_params, invalid_request, just_ok, Schedula
 use tinymist_std::error::prelude::*;
 use typst::{
     engine::Sink,
-    foundations::Repr,
+    foundations::{Context, Repr},
+    introspection::Introspector,
     syntax::{LinkedNode, Span, SyntaxMode},
     World,
 };
@@ -214,6 +215,8 @@ impl ServerState {
             &typst::ROUTINES,
             (world as &dyn World).track(),
             Sink::new().track_mut(),
+            Introspector::default().track(),
+            Context::none().track(),
             &args.expression,
             span,
             SyntaxMode::Code,
