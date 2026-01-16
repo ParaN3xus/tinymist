@@ -320,7 +320,7 @@ impl ExprWorker<'_> {
             >())))),
             MathText(t) => Expr::Type(Ty::Builtin(BuiltinTy::Content(Some({
                 match t.get() {
-                    MathTextKind::Character(..) => Element::of::<typst::foundations::SymbolElem>(),
+                    MathTextKind::Grapheme(..) => Element::of::<typst::foundations::SymbolElem>(),
                     MathTextKind::Number(..) => Element::of::<typst::foundations::SymbolElem>(),
                 }
             })))),
