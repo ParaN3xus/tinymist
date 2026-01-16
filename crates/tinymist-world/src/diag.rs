@@ -59,7 +59,8 @@ pub fn print_diagnostics_to<'d, 'files>(
             diagnostic
                 .hints
                 .iter()
-                .map(|e| (eco_format!("hint: {e}")).into())
+                .filter(|s| s.span.is_detached())
+                .map(|s| (eco_format!("hint: {}", s.v)).into())
                 .collect(),
         )
         .with_labels(label(world.world, diagnostic.span).into_iter().collect());
