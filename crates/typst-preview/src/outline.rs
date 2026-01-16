@@ -100,7 +100,7 @@ impl HeadingNode {
     fn leaf(introspector: &Introspector, element: &Packed<HeadingElem>) -> Self {
         let position = {
             let loc = element.location().unwrap();
-            let pos = introspector.position(loc);
+            let pos = introspector.position(loc).as_paged_or_default();
             DocumentPosition {
                 page_no: pos.page.into(),
                 x: pos.point.x.to_pt() as f32,
