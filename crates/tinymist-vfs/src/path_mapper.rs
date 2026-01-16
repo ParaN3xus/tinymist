@@ -2,7 +2,7 @@
 //! no longer exist -- the assumption is total size of paths we ever look at is
 //! not too big.
 
-use core::fmt;
+use core::{fmt, panic};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -12,8 +12,8 @@ use parking_lot::RwLock;
 use tinymist_std::ImmutPath;
 use tinymist_std::path::PathClean;
 use typst::diag::{EcoString, FileError, FileResult, eco_format};
-use typst::syntax::VirtualPath;
 use typst::syntax::package::{PackageSpec, PackageVersion};
+use typst::syntax::{RootedPath, VirtualPath, VirtualRoot};
 
 use super::FileId;
 
@@ -39,7 +39,7 @@ impl PathResolution {
     pub fn as_path(&self) -> &Path {
         match self {
             PathResolution::Resolved(path) => path.as_path(),
-            PathResolution::Rootless(path) => path.as_rooted_path(),
+            PathResolution::Rootless(path) => Path::new(path.get_with_slash()),
         }
     }
 
@@ -47,18 +47,25 @@ impl PathResolution {
     pub fn join(&self, path: &str) -> FileResult<PathResolution> {
         match self {
             PathResolution::Resolved(root) => Ok(PathResolution::Resolved(root.join(path))),
-            PathResolution::Rootless(root) => {
-                Ok(PathResolution::Rootless(Cow::Owned(root.join(path))))
-            }
+            PathResolution::Rootless(root) => Ok(PathResolution::Rootless(Cow::Owned(
+                root.join(path).map_err(|err| {
+                    FileError::Other(Some(format!("invalid virtual path: {:?}", err).into()))
+                })?,
+            ))),
         }
     }
 
     /// Resolves a virtual path relative to this path resolution.
     pub fn resolve_to(&self, path: &VirtualPath) -> Option<PathResolution> {
         match self {
-            PathResolution::Resolved(root) => Some(PathResolution::Resolved(path.resolve(root)?)),
+            PathResolution::Resolved(root) => Some(PathResolution::Resolved(path.realize(root))),
             PathResolution::Rootless(root) => Some(PathResolution::Rootless(Cow::Owned(
-                VirtualPath::new(path.resolve(root.as_ref().as_rooted_path())?),
+                VirtualPath::new(
+                    path.realize(Path::new(root.as_ref().get_with_slash()))
+                        .to_str()
+                        .expect("invalid path"),
+                )
+                .ok()?,
             ))),
         }
     }
@@ -71,19 +78,21 @@ pub trait RootResolver {
         use WorkspaceResolution::*;
         let root = match WorkspaceResolver::resolve(file_id)? {
             Workspace(id) => id.path().clone(),
-            Package => {
-                self.resolve_package_root(file_id.package().expect("not a file in package"))?
-            }
+            Package => self.resolve_package_root(
+                match file_id.root() {
+                    VirtualRoot::Package(package) => Some(package),
+                    _ => panic!("not a file in package"),
+                }
+                .expect("not a file in package"),
+            )?,
             UntitledRooted(..) | Rootless => {
-                return Ok(PathResolution::Rootless(Cow::Borrowed(file_id.vpath())));
+                return Ok(PathResolution::Rootless(Cow::Owned(
+                    file_id.vpath().to_owned(),
+                )));
             }
         };
 
-        file_id
-            .vpath()
-            .resolve(&root)
-            .map(PathResolution::Resolved)
-            .ok_or_else(|| FileError::AccessDenied)
+        Ok(PathResolution::Resolved(file_id.vpath().realize(&root)))
     }
 
     /// Resolves the root path for a given file ID.
@@ -93,7 +102,10 @@ pub trait RootResolver {
             Workspace(id) | UntitledRooted(id) => Ok(Some(id.path().clone())),
             Rootless => Ok(None),
             Package => self
-                .resolve_package_root(file_id.package().expect("not a file in package"))
+                .resolve_package_root(match file_id.root() {
+                    VirtualRoot::Package(package) => package,
+                    _ => panic!("not a file in package"),
+                })
                 .map(Some),
         }
     }
@@ -191,14 +203,18 @@ impl WorkspaceResolver {
 
     /// Checks if a file ID represents a workspace file.
     pub fn is_workspace_file(fid: FileId) -> bool {
-        fid.package()
-            .is_some_and(|p| p.namespace == WorkspaceResolver::WORKSPACE_NS)
+        match fid.root() {
+            VirtualRoot::Project => false,
+            VirtualRoot::Package(p) => p.namespace == WorkspaceResolver::WORKSPACE_NS,
+        }
     }
 
     /// Checks if a file ID represents a package file.
     pub fn is_package_file(fid: FileId) -> bool {
-        fid.package()
-            .is_some_and(|p| p.namespace != WorkspaceResolver::WORKSPACE_NS)
+        match fid.root() {
+            VirtualRoot::Project => false,
+            VirtualRoot::Package(p) => p.namespace != WorkspaceResolver::WORKSPACE_NS,
+        }
     }
 
     /// Gets or creates a workspace ID for the given root path.
@@ -227,7 +243,7 @@ impl WorkspaceResolver {
 
     /// Creates a file id for a rootless file.
     pub fn rootless_file(path: VirtualPath) -> FileId {
-        FileId::new(None, path)
+        RootedPath::new(VirtualRoot::Project, path).intern()
     }
 
     /// Creates a file ID for a file with its parent directory as the root.
@@ -237,7 +253,7 @@ impl WorkspaceResolver {
         }
         let parent = path.parent()?;
         let parent = ImmutPath::from(parent);
-        let path = VirtualPath::new(path.file_name()?);
+        let path = VirtualPath::new(path.file_name()?.to_str()?).ok()?;
         Some(Self::workspace_file(Some(&parent), path))
     }
 
@@ -245,21 +261,27 @@ impl WorkspaceResolver {
     /// directory of the workspace. If `root` is `None`, the source code at the
     /// `path` will not be able to access physical files.
     pub fn workspace_file(root: Option<&ImmutPath>, path: VirtualPath) -> FileId {
-        let workspace = root.map(Self::workspace_id);
-        FileId::new(workspace.as_ref().map(WorkspaceId::package), path)
+        let root = match root {
+            Some(p) => VirtualRoot::Package(Self::workspace_id(p).package()),
+            None => VirtualRoot::Project,
+        };
+        RootedPath::new(root, path).intern()
     }
 
     /// Mounts an untitled file to a workspace. The `root` is the
     /// root directory of the workspace. If `root` is `None`, the source
     /// code at the `path` will not be able to access physical files.
     pub fn rooted_untitled(root: Option<&ImmutPath>, path: VirtualPath) -> FileId {
-        let workspace = root.map(Self::workspace_id);
-        FileId::new(workspace.as_ref().map(WorkspaceId::untitled_root), path)
+        let root = match root {
+            Some(p) => VirtualRoot::Package(Self::workspace_id(p).untitled_root()),
+            None => VirtualRoot::Project,
+        };
+        RootedPath::new(root, path).intern()
     }
 
     /// Resolves a file ID to its corresponding workspace resolution.
     pub fn resolve(fid: FileId) -> FileResult<WorkspaceResolution> {
-        let Some(package) = fid.package() else {
+        let VirtualRoot::Package(package) = fid.root() else {
             return Ok(WorkspaceResolution::Rootless);
         };
 
@@ -298,8 +320,8 @@ impl fmt::Debug for Resolving {
         };
 
         let path = match WorkspaceResolver::resolve(id) {
-            Ok(Workspace(workspace)) => id.vpath().resolve(&workspace.path()),
-            Ok(UntitledRooted(..)) => Some(id.vpath().as_rootless_path().to_owned()),
+            Ok(Workspace(workspace)) => Some(id.vpath().realize(&workspace.path())),
+            Ok(UntitledRooted(..)) => Some(id.vpath().get_without_slash().into()),
             Ok(Rootless | Package) | Err(_) => None,
         };
 
@@ -319,20 +341,26 @@ impl fmt::Display for Resolving {
         };
 
         let path = match WorkspaceResolver::resolve(id) {
-            Ok(Workspace(workspace)) => id.vpath().resolve(&workspace.path()),
-            Ok(UntitledRooted(..)) => Some(id.vpath().as_rootless_path().to_owned()),
+            Ok(Workspace(workspace)) => Some(id.vpath().realize(&workspace.path())),
+            Ok(UntitledRooted(..)) => Some(id.vpath().get_without_slash().into()),
             Ok(Rootless | Package) | Err(_) => None,
         };
 
         if let Some(path) = path {
             write!(f, "{}", path.display())
         } else {
-            let pkg = id.package();
+            let pkg = id.root();
             match pkg {
-                Some(pkg) => {
-                    write!(f, "{pkg}{}", id.vpath().as_rooted_path().display())
+                VirtualRoot::Package(pkg) => {
+                    write!(
+                        f,
+                        "{pkg}{}",
+                        Path::new(id.vpath().get_with_slash()).display()
+                    )
                 }
-                None => write!(f, "{}", id.vpath().as_rooted_path().display()),
+                VirtualRoot::Project => {
+                    write!(f, "{}", Path::new(id.vpath().get_with_slash()).display())
+                }
             }
         }
     }

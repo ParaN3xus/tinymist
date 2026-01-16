@@ -128,7 +128,10 @@ impl EntryResolver {
             (Some(entry), Some(root)) => match entry.strip_prefix(&root) {
                 Ok(stripped) => Some(EntryState::new_rooted(
                     root,
-                    Some(VirtualPath::new(stripped)),
+                    Some(
+                        VirtualPath::new(stripped.to_str().expect("invalid path"))
+                            .expect("invalid virtual path"),
+                    ),
                 )),
                 Err(err) => {
                     log::info!(
@@ -229,7 +232,7 @@ mod entry_tests {
             entry.main(),
             Some(WorkspaceResolver::workspace_file(
                 entry.root().as_ref(),
-                VirtualPath::new("main.typ")
+                VirtualPath::new("main.typ").unwrap()
             ))
         );
     }
@@ -253,7 +256,7 @@ mod entry_tests {
                 entry.main(),
                 Some(WorkspaceResolver::workspace_file(
                     entry.root().as_ref(),
-                    VirtualPath::new("main.typ")
+                    VirtualPath::new("main.typ").unwrap()
                 ))
             );
         }
@@ -266,7 +269,7 @@ mod entry_tests {
                 entry.main(),
                 Some(WorkspaceResolver::workspace_file(
                     entry.root().as_ref(),
-                    VirtualPath::new("main.typ")
+                    VirtualPath::new("main.typ").unwrap()
                 ))
             );
         }
