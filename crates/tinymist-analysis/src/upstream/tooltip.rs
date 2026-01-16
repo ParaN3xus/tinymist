@@ -169,22 +169,24 @@ fn length_tooltip(length: Length) -> Option<Tooltip> {
 
 /// Tooltip for font.
 fn font_tooltip(world: &dyn World, leaf: &LinkedNode) -> Option<Tooltip> {
+    let book = world.book();
+
     // Ensure that we are on top of a string.
     if let Some(string) = leaf.cast::<ast::Str>()
-        &&let lower = string.get().to_lowercase()
+        && let lower = string.get().to_lowercase()
 
         // Ensure that we are in the arguments to the text function.
         && let Some(parent) = leaf.parent()
         && let Some(named) = parent.cast::<ast::Named>()
         && named.name().as_str() == "font"
-
+        
         // Find the font family.
-        && let Some((_, iter)) = world
-            .book()
+        && let Some((_, ids)) = book
             .families()
-            .find(|&(family, _)| family.to_lowercase().as_str() == lower.as_str())
+            .find(|&(family, _)| family.to_lowercase() == lower)
     {
-        let detail = summarize_font_family(iter);
+        let variants = ids.filter_map(|id| book.info(id));
+        let detail = summarize_font_family(variants);
         return Some(Tooltip::Text(detail));
     }
 

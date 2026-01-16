@@ -2,23 +2,38 @@
 //! `typst::foundations::Value`.
 
 use tinymist_std::time::yyyy_mm_dd;
-use typst::foundations::Symbol;
+use typst::{foundations::Symbol, text::FontFlags};
 
 use super::*;
 impl CompletionPair<'_, '_, '_> {
     /// Add completions for all font families.
     pub fn font_completions(&mut self) {
         let equation = self.cursor.before_window(25).contains("equation");
-        for (family, iter) in self.worker.world().clone().book().families() {
-            let detail = summarize_font_family(iter);
-            if !equation || family.contains("Math") {
-                self.value_completion(
-                    None,
-                    &Value::Str(family.into()),
-                    false,
-                    Some(detail.as_str()),
-                );
-            }
+
+        let completions: Vec<(EcoString, EcoString)> = {
+            let book = self.worker.world().book();
+            book.families()
+                .filter_map(|(family, ids)| {
+                    let variants: Vec<_> = ids.filter_map(|id| book.info(id)).collect();
+                    let is_math = variants.iter().any(|f| f.flags.contains(FontFlags::MATH));
+
+                    if !equation || is_math {
+                        let detail = summarize_font_family(variants.into_iter());
+                        Some((family.into(), detail))
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        };
+
+        for (family, detail) in completions {
+            self.value_completion(
+                None,
+                &Value::Str(family.into()),
+                false,
+                Some(detail.as_str()),
+            );
         }
     }
 
