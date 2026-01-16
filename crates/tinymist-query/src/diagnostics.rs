@@ -193,7 +193,7 @@ fn diagnostic_message(typst_diagnostic: &TypstDiagnostic) -> String {
     let mut message = typst_diagnostic.message.to_string();
     for hint in &typst_diagnostic.hints {
         message.push_str("\nHint: ");
-        message.push_str(hint);
+        message.push_str(&hint.v);
     }
     message
 }
