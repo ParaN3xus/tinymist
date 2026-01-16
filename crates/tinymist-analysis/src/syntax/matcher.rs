@@ -367,7 +367,7 @@ pub(crate) fn interpret_mode_at_kind(kind: SyntaxKind) -> Option<InterpretMode> 
         | Space | Linebreak | Parbreak | Escape | Shorthand | SmartQuote | RawLang | RawDelim
         | RawTrimmed | LeftBrace | RightBrace | LeftBracket | RightBracket | LeftParen
         | RightParen | Comma | Semicolon | Colon | Star | Underscore | Dollar | Plus | Minus
-        | Slash | Hat | Prime | Dot | Eq | EqEq | ExclEq | Lt | LtEq | Gt | GtEq | PlusEq
+        | Slash | Hat | Bang | Dot | Eq | EqEq | ExclEq | Lt | LtEq | Gt | GtEq | PlusEq
         | HyphEq | StarEq | SlashEq | Dots | Arrow | Root | Not | And | Or | None | Auto | As
         | Named | Keyed | Spread | Error | End => return Option::None,
         Strong | Emph | Link | Ref | RefMarker | Heading | HeadingMarker | ListItem
